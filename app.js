@@ -163,11 +163,36 @@ function search(){
  render(a[0].c,q,a[0].m);
 }
 
+function questionGroups(items){
+ var universal=[],specific=[],mode="specific";
+ (items||[]).forEach(function(raw){
+  var text=val(raw);if(!text)return;
+  var n=norm(text);
+  if(n.indexOf("универсальн")===0){mode="universal";text=text.replace(/^\s*универсальные вопросы\s*[:—-]?\s*/i,"").trim();if(text)universal.push(text);return;}
+  if(n.indexOf("специфичн")===0||n.indexOf("специфическ")===0){mode="specific";text=text.replace(/^\s*специфич(?:ные|еские)\s*(?:вопросы)?\s*[:—-]?\s*/i,"").trim();if(text)specific.push(text);return;}
+  if(mode==="universal")universal.push(text);else specific.push(text);
+ });
+ return {universal:universal,specific:specific};
+}
+function renderQuestionList(title,items){
+ var h='<div class="question-col"><div class="question-heading">'+esc(title)+'</div>';
+ if(!items.length)h+='<div class="question-empty">Нет отдельных вопросов в базе.</div>';
+ else items.forEach(function(x){h+='<div class="q">☐ '+esc(x)+'</div>';});
+ return h+'</div>';
+}
+function renderQuestions(items){
+ var g=questionGroups(items);
+ return '<div class="questions-grid">'+renderQuestionList("Универсальные вопросы",g.universal)+renderQuestionList("Специфичные вопросы по подбору",g.specific)+'</div>';
+}
+function externalSearch(type){
+ var q=val(document.getElementById("search").value);if(!q)return;
+ var prompt="Подбери оборудование для задачи клиента: "+q+". Найди реальные модели, производителей или поставщиков. Укажи технические характеристики, производительность и ссылки на источники.";
+ var url=type==="alice"?"https://yandex.ru/search/?text="+encodeURIComponent(prompt):"https://chatgpt.com/?q="+encodeURIComponent(prompt);
+ window.open(url,"_blank");
+}
 function render(c,q,m){
  var h='<div class="card"><div class="title">Найдено</div><h2>'+esc(c.name)+'</h2><span class="pill">Совпадение '+m.score+'%</span><div class="why">Совпало: '+esc(m.hits.join(", "))+'</div></div>';
- h+='<div class="card"><div class="title">Что уточнить у клиента</div><div class="questions">';
- c.q.forEach(function(x){h+='<div class="q">☐ '+esc(x)+'</div>';});
- h+='</div></div>';
+ h+='<div class="card"><div class="title">Что уточнить у клиента</div>'+renderQuestions(c.q)+'</div>';
  h+='<div class="card"><div class="title">Особенности категории</div>'+esc(c.note||"Уточнить задачу клиента.")+'</div>';
  h+='<div class="card"><div class="title">Поставщики</div><div class="suppliers">';
  c.rows.forEach(function(r){var s=r.supplier;h+='<div class="supplier"><div class="prio '+esc(s.priority)+'">'+esc(s.priority||"—")+' · '+esc(s.name)+'</div><div class="small">'+esc(s.brand)+'</div><h3>'+esc(s.contact||"Контакт не заполнен")+'</h3><div class="small">'+(s.phone?"📞 "+esc(s.phone):"")+(s.email?"<br>✉ "+esc(s.email):"")+'</div><div class="small"><b>Скидка:</b> '+esc(s.discount||"—")+'</div>'+(s.country?'<div class="small">🌍 '+esc(s.country)+'</div>':"")+(s.workFeatures?'<div class="small">Особенности: '+esc(s.workFeatures)+'</div>':"")+(s.advantages?'<div class="small">Преимущества: '+esc(s.advantages)+'</div>':"")+'</div>';});

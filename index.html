@@ -28,26 +28,106 @@ input{flex:1;border:0;outline:0;font-size:17px;padding:14px;background:transpare
 </section>
 <div id="results"></div>
 </main>
-<footer>АЛЬФАПРОМ · прототип MVP v1 · данные пока тестовые</footer>
+<footer>АЛЬФАПРОМ · база поставщиков подключена к Google Sheets через Apps Script</footer>
 <script>
-const S={
-"Протэк":{brand:"ТМ Протэк",site:"https://protekgroup.com",contact:"Юрий",phone:"8 916 510 5730",email:"Y.Lipnitsky@protekgroup.com",discount:"25%",note:"Не показывать клиенту марку Протэк в начале работы."},
-"Хуалянь":{brand:"ТМ Hualian",site:"https://hmru.ru",contact:"Павел Киселев",phone:"8 968 009-23-99",email:"pk@hmru.ru",discount:"25%",note:"Строгий запрет на демпинг. Запросы и отгрузки — через МАКС."},
-"Георг Полимер":{brand:"ТМ Resure",site:"https://georgpolymer.ru",contact:"Сергей / Екатерина Корнейчик",phone:"+7 906 311-17-70 / +7 903 149-08-41",email:"ken@georgpolymer.ru",discount:"19–20%",note:"Заявки на отгрузку и доверенности направляются бухгалтеру."},
-"Русский проект":{brand:"ТМ Indokor",site:"https://rp.ru",contact:"Артёмова Тамара",phone:"8-910-816-87-10",email:"artemova@rp.ru",discount:"15%",note:"Оборудование, ЗИП и расходка."},
-"ПКБ-Тис / Тугулев":{brand:"Heffler Vac",site:"",contact:"—",phone:"—",email:"—",discount:"10%",note:"Статус: переговоры."},
-"Агрозавод":{brand:"Фудатлас",site:"",contact:"—",phone:"—",email:"—",discount:"—",note:"Поставщик из базы АЛЬФАПРОМ."},
-"Пищевые Технологии":{brand:"",site:"",contact:"—",phone:"—",email:"—",discount:"—",note:"Поставщик из базы АЛЬФАПРОМ."}
-};
-const C=[
-{id:"tray-ind",name:"Запайщики лотков промышленные",kw:["запайщик лотков","трейсилер","tray sealer","промышленный запайщик лотков","автоматический запайщик лотков","конвейерный запайщик","запайщик лотков с конвейером","промышленный трейсилер","автоматический трейсилер","tray sealing machine","запайщик лотков map"],q:["Какой продукт?","В каком виде продукт?","Какой тип упаковки?","Какой срок хранения?","Какая производительность?","Размер и форма лотков","Тип упаковочного материала","Нужна ли настройка под разные размеры?"],note:"Производительность и цена сильно различаются. Уточнить бюджет; предлагать под ключ, пусконаладку, обучение, лотки и пленку.",s:[["A","Протэк"],["A","Хуалянь"],["B","Георг Полимер"],["C","ПКБ-Тис / Тугулев"]]},
-{id:"tray-semi",name:"Запайщики лотков полуавтомат (средн. произв-сть)",kw:["полуавтоматический запайщик лотков","полуавтомат запайки лотков","полуавтомат для запайки лотков","полуавтоматический трейсилер","полуавтоматический tray sealer","запайщик лотков средней производительности","запайщик для мяса","запайщик для рыбы","запайщик для полуфабрикатов"],q:["Какой продукт?","В каком виде продукт?","Какой тип упаковки?","Какая производительность?","Размер и форма лотков","Тип материала","Нужна ли MAP?"],note:"Для средней производительности. Ключевые параметры — производительность, размер лотка и необходимость MAP.",s:[["A","Хуалянь"],["A","Георг Полимер"],["B","Русский проект"],["C","ПКБ-Тис / Тугулев"]]},
-{id:"tray-small",name:"Запайщики лотков небольшие (ручные и т.д.)",kw:["ручной запайщик лотков","ручная запайка лотков","настольный запайщик лотков","настольный трейсилер","ручной трейсилер","компактный запайщик лотков","небольшой запайщик лотков","малогабаритный запайщик лотков","запайщик лотков малой производительности","запайщик лотков для небольшого производства","запайщик лотков для кафе","запайщик лотков для ресторана","запайщик лотков map"],q:["Какой продукт?","Какая производительность?","Размер и форма лотков","Тип материала лотка","Размер пленки","Нужна ли MAP?"],note:"Ручные и настольные решения для небольших объёмов.",s:[["A","Хуалянь"],["A","Георг Полимер"],["B","Русский проект"],["C","ПКБ-Тис / Тугулев"]]},
-{id:"vac-ind",name:"Вакуумные упаковщики промышленные",kw:["промышленный вакууматор","промышленный вакуумный упаковщик","вакуумная упаковочная машина","камерный вакуумный упаковщик","промышленный камерный вакууматор","вакуумный упаковщик для производства","промышленный вакууматор для мяса","промышленный вакууматор для рыбы"],q:["Какой продукт?","Производительность?","Размер пакета?","Какой тип пакета?","Размер камеры?","Требуется ли газовая среда?"],note:"Критичны размер камеры, длина планки, производительность и продукт.",s:[["A","Хуалянь"],["A","Георг Полимер"],["B","Русский проект"]]},
-{id:"vac-small",name:"Вакуумные упаковщики небольшие",kw:["вакуумный упаковщик","вакууматор","небольшой вакууматор","компактный вакууматор","настольный вакууматор","настольный вакуумный упаковщик","профессиональный настольный вакууматор","компактный вакуумный упаковщик","малогабаритный вакуумный упаковщик","вакуумный упаковщик для небольшого производства","вакууматор для кафе","вакууматор для ресторана","вакууматор для магазина","камерный вакууматор","настольный камерный вакууматор","небольшой камерный вакууматор","вакууматор для мяса","вакууматор для рыбы","вакууматор для сыра","вакууматор для полуфабрикатов"],q:["Какой продукт?","Какая производительность?","Размер пакета?","Какой тип упаковки?","Нужна ли газовая среда?"],note:"Компактные камерные вакууматоры для небольших производств, кафе, магазинов и небольших объёмов.",s:[["A","Хуалянь"],["A","Георг Полимер"],["B","Русский проект"]]},
-{id:"cutlet",name:"Котлетные аппараты",kw:["котлетный аппарат","котлетный автомат","аппарат для формовки котлет","формовщик котлет","формирователь котлет","котлетоформовочная машина","котлетоформовщик","автомат для производства котлет","промышленный формовщик котлет","оборудование для производства котлет","формовщик полуфабрикатов","аппарат для формовки полуфабрикатов","машина для формовки полуфабрикатов","аппарат для котлет","машина для котлет"],q:["Какой продукт?","Требуемая производительность?","Масса одной котлеты?","Форма и размер изделия?","Размер формующей оснастки?"],note:"Важно уточнить массу и геометрию изделия и требуемую производительность.",s:[["A","Агрозавод"],["B","Русский проект"]]},
-{id:"autoclave",name:"Автоклавы",kw:["автоклав","промышленный автоклав","пищевой автоклав","автоклав для консервирования","автоклав для консервов","автоклав для производства консервов","автоклав для стерилизации","промышленный стерилизатор","пищевой стерилизатор","стерилизатор для консервов","оборудование для стерилизации","автоклавная установка","паровой автоклав","водяной автоклав","пароводяной автоклав","горизонтальный автоклав","вертикальный автоклав","автоклав для мяса","автоклав для тушенки","автоклав для тушёнки","автоклав для банок","реторт"],q:["Что стерилизуется?","Тип и размер тары?","Производительность/загрузка?","Требуемый режим стерилизации?","Пар или вода?","Горизонтальный или вертикальный?"],note:"Критичны тара, загрузка, режим стерилизации и теплоноситель.",s:[["A","Пищевые Технологии"],["B","Агрозавод"]]}
-];
+const API_URL="https://script.google.com/macros/s/AKfycbyfAoAmHOiM2O18kEh-AAjzNKv5reH1RErFZp0-wNKKKJbSG3kxW9el8bqTMo8ZzI8/exec";
+let S={};
+let C=[];
+let API_LOADED=false;
+let API_ERROR="";
+
+function esc(x){
+  return String(x??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m]));
+}
+function val(x){return x==null?"":String(x).trim()}
+function toList(x){
+  if(Array.isArray(x)) return x.map(val).filter(Boolean);
+  const s=val(x);
+  if(!s) return [];
+  return s.split(/\\n|[;\\r]+/).map(x=>x.trim()).filter(Boolean);
+}
+function priorityRank(x){return ({A:1,B:2,C:3})[String(x||"").trim().toUpperCase()]||9}
+function mergeFirst(a,b){return val(a)||val(b)}
+function normalizeSupplier(s){
+  const name=val(s.name)||"Без названия";
+  return {
+    name,
+    brand:val(s.brand)||val(s.groups),
+    country:val(s.country),
+    legalName:val(s.legalName),
+    site:val(s.site),
+    status:val(s.status),
+    discount:val(s.discount),
+    groups:val(s.groups),
+    workFeatures:val(s.workFeatures),
+    personalCabinet:val(s.personalCabinet),
+    additionalInfo:val(s.additionalInfo),
+    contact:val(s.mainContact),
+    advantages:val(s.advantages),
+    note:val(s.comments),
+    department:val(s.department),
+    phone:val(s.phone),
+    email:val(s.email),
+    messenger:val(s.messenger),
+    additionalContacts:val(s.additionalContacts),
+    serviceCenter:val(s.serviceCenter),
+    showroom:val(s.showroom),
+    warehouse:val(s.warehouse),
+    pickup:val(s.pickup),
+    deliveryToTK:val(s.deliveryToTK),
+    deliveryTerms:val(s.deliveryTerms),
+    shipmentRequest:val(s.shipmentRequest),
+    accounting:val(s.accounting),
+    categoryId:val(s.categoryId),
+    priority:val(s.priority).toUpperCase()
+  };
+}
+function buildData(items){
+  const cats=new Map();
+  const suppliers=new Map();
+  (Array.isArray(items)?items:[]).forEach(row=>{
+    const cat=val(row.category)||"Без категории";
+    const cm=row.categoryData||row.categoryInfo||row;
+    if(!cats.has(cat)) cats.set(cat,{id:"cat-"+n(cat).replace(/[^a-z0-9]+/g,"-"),name:cat,kw:[],q:[],note:"",s:[]});
+    const c=cats.get(cat);
+    c.kw=[...new Set([...c.kw,...toList(cm.keywords)])];
+    c.q=[...new Set([...c.q,...toList(cm.questions)])];
+    c.note=mergeFirst(c.note,cm.features);
+    const sp=normalizeSupplier(row.supplier||{});
+    const key=cat+"\\u0000"+sp.name;
+    if(!suppliers.has(key)){
+      suppliers.set(key,sp);
+      c.s.push(sp);
+    }else{
+      const old=suppliers.get(key);
+      Object.keys(sp).forEach(k=>{if(!old[k]&&sp[k])old[k]=sp[k]});
+    }
+  });
+  C=[...cats.values()].map(c=>{
+    c.s.sort((a,b)=>priorityRank(a.priority)-priorityRank(b.priority));
+    return c;
+  });
+  S={};
+  C.forEach(c=>c.s.forEach(s=>{S[s.name]=s}));
+}
+async function loadApi(){
+  const results=document.getElementById("results");
+  results.innerHTML='<div class="card"><div class="title">Подключение</div>Загружаю актуальную базу поставщиков АЛЬФАПРОМ…</div>';
+  try{
+    const r=await fetch(API_URL,{method:"GET",cache:"no-store"});
+    if(!r.ok) throw new Error("HTTP "+r.status);
+    const data=await r.json();
+    if(!data||data.success!==true||!Array.isArray(data.items)) throw new Error("API вернул неожиданный формат");
+    buildData(data.items);
+    if(!C.length) throw new Error("API не вернул категорий");
+    API_LOADED=true;
+    results.innerHTML='<div class="card"><div class="title">Готово</div>База поставщиков загружена: '+data.items.length+' записей.</div>';
+  }catch(e){
+    API_ERROR=e.message||"Ошибка подключения";
+    results.innerHTML='<div class="card"><div class="title">Не удалось загрузить базу</div><div>'+esc(API_ERROR)+'</div><div class="small">Проверьте доступность Apps Script API.</div></div>';
+  }
+}
+
 function n(x){return x.toLowerCase().replace(/ё/g,"е").replace(/[^\p{L}\p{N}\s-]/gu," ").replace(/\s+/g," ").trim()}
 function score(query,c){let q=n(query), best=0,hits=[];let all=[c.name,...c.kw];all.forEach(k=>{let x=n(k);if(q.includes(x)){let v=x===n(c.name)?100:x.split(" ").length>1?80:45;if(v>best)best=v;hits.push(k)}});let ws=q.split(" ").filter(x=>x.length>2),over=0;ws.forEach(w=>{if(all.some(k=>n(k).split(" ").includes(w)))over++});best+=Math.min(over*10,30);
 if((q.includes("небольш")||q.includes("маленьк")||q.includes("компакт"))&&c.id==="vac-small")best+=25;
@@ -56,15 +136,51 @@ if(q.includes("конвейер")&&c.id==="tray-ind")best+=25;if(q.includes("п�
 if((q.includes("тушен")||q.includes("консерв"))&&c.id==="autoclave")best+=30;if(q.includes("котлет")&&c.id==="cutlet")best+=30;
 return {score:Math.min(best,99),hits:[...new Set(hits)].slice(0,4)}}
 function demo(x){document.getElementById("search").value=x;search()}
-function search(){let q=document.getElementById("search").value.trim();if(!q){document.getElementById("results").innerHTML="";return}let r=C.map(c=>({...c,m:score(q,c)})).filter(c=>c.m.score>=25).sort((a,b)=>b.m.score-a.m.score);if(!r.length){document.getElementById("results").innerHTML=external(q,null);return}let top=r[0],h=`<div class="card"><div class="title">Найдено</div><h2>${top.name}</h2><span class="pill">Совпадение ${top.m.score}%</span><div class="why">Совпало: ${top.m.hits.join(", ")||"контекст запроса"}</div></div>`;
-if(r.length>1&&r[1].m.score>=55){h+=`<div class="card"><div class="title">Возможные категории</div>${r.slice(0,3).map(c=>`<button class="secondary" style="margin:4px" onclick="pick('${c.id}')">${c.name} · ${c.m.score}%</button>`).join("")}</div>`}
-h+=render(top,q);document.getElementById("results").innerHTML=h}
-function pick(id){let c=C.find(x=>x.id===id),q=document.getElementById("search").value;document.getElementById("results").innerHTML=render(c,q)}
-function render(c,q){let h=`<div class="card"><div class="title">Что уточнить у клиента</div><div class="questions">${c.q.map(x=>`<div class="q">☐ ${x}</div>`).join("")}</div><div class="actions"><button class="secondary" onclick='copyQ(${JSON.stringify(c.q)})'>Скопировать вопросы</button></div></div><div class="card"><div class="title">Особенности категории</div>${c.note}</div><div class="card"><div class="title">Поставщики</div><div class="suppliers">${c.s.map(x=>supplier(x[0],x[1])).join("")}</div></div>`;return h+external(q,c.name)}
-function supplier(p,name){let s=S[name]||{};return `<div class="supplier"><div class="prio ${p}">${p} · ${name}</div><div class="small">${s.brand||""}</div><h3>${s.contact||"Контакт не заполнен"}</h3><div class="small">${s.phone&&s.phone!=="—"?"📞 "+s.phone:""}${s.email&&s.email!=="—"?"<br>✉ "+s.email:""}</div><div class="small"><b>Скидка:</b> ${s.discount||"—"}</div><div class="small">${s.note||""}</div><div class="actions">${s.site?`<button class="secondary" onclick="open('${s.site}')">Сайт</button>`:""}${s.phone&&s.phone!=="—"?`<button class="secondary" onclick="location.href='tel:${s.phone.replace(/[^0-9+]/g,"")}'">Позвонить</button>`:""}${s.email&&s.email!=="—"?`<button class="secondary" onclick="location.href='mailto:${s.email}'">Email</button>`:""}</div></div>`}
+function search(){
+  let q=document.getElementById("search").value.trim();
+  if(!q){document.getElementById("results").innerHTML="";return}
+  if(!API_LOADED){
+    document.getElementById("results").innerHTML='<div class="card"><div class="title">База ещё не готова</div>'+esc(API_ERROR||"Подождите окончания загрузки данных.")+'</div>';
+    return;
+  }
+  let r=C.map(c=>({...c,m:score(q,c)})).filter(c=>c.m.score>=25).sort((a,b)=>b.m.score-a.m.score);
+  if(!r.length){document.getElementById("results").innerHTML=external(q,null);return}
+  let top=r[0],h='<div class="card"><div class="title">Найдено</div><h2>'+esc(top.name)+'</h2><span class="pill">Совпадение '+top.m.score+'%</span><div class="why">Совпало: '+esc(top.m.hits.join(", ")||"контекст запроса")+'</div></div>';
+  if(r.length>1&&r[1].m.score>=55){
+    h+='<div class="card"><div class="title">Возможные категории</div>'+r.slice(0,3).map(c=>'<button class="secondary" style="margin:4px" onclick="pick(\''+esc(c.id)+'\')">'+esc(c.name)+' · '+c.m.score+'%</button>').join("")+'</div>';
+  }
+  h+=render(top,q);
+  document.getElementById("results").innerHTML=h;
+}
+function pick(id){
+  let c=C.find(x=>x.id===id),q=document.getElementById("search").value;
+  if(c) document.getElementById("results").innerHTML=render(c,q);
+}
+function render(c,q){
+  let h='<div class="card"><div class="title">Что уточнить у клиента</div><div class="questions">'+c.q.map(x=>'<div class="q">☐ '+esc(x)+'</div>').join("")+'</div><div class="actions"><button class="secondary" onclick=\'copyQ('+JSON.stringify(c.q)+')\'>Скопировать вопросы</button></div></div>';
+  h+='<div class="card"><div class="title">Особенности категории</div>'+esc(c.note||"Уточнить задачу клиента и подобрать оборудование по параметрам.")+'</div>';
+  h+='<div class="card"><div class="title">Поставщики</div><div class="suppliers">'+c.s.map(s=>supplier(s)).join("")+'</div></div>';
+  return h+external(q,c.name);
+}
+function supplier(s){
+  const details=[];
+  if(s.country) details.push("🌍 "+esc(s.country));
+  if(s.legalName) details.push("Юрлицо: "+esc(s.legalName));
+  if(s.status) details.push("Статус: "+esc(s.status));
+  if(s.groups) details.push("Группы: "+esc(s.groups));
+  const actions=[];
+  if(s.site) actions.push('<button class="secondary" onclick="open(\''+esc(s.site)+'\')">Сайт</button>');
+  if(s.phone) actions.push('<button class="secondary" onclick="location.href=\'tel:'+s.phone.replace(/[^0-9+]/g,"")+'\'">Позвонить</button>');
+  if(s.email) actions.push('<button class="secondary" onclick="location.href=\'mailto:'+esc(s.email)+'\'">Email</button>');
+  if(s.messenger) details.push("Мессенджер: "+esc(s.messenger));
+  if(s.workFeatures) details.push("Особенности работы: "+esc(s.workFeatures));
+  if(s.advantages) details.push("Преимущества: "+esc(s.advantages));
+  if(s.note) details.push("Комментарий: "+esc(s.note));
+  return '<div class="supplier"><div class="prio '+esc(s.priority)+'">'+esc(s.priority||"—")+' · '+esc(s.name)+'</div><div class="small">'+esc(s.brand||"")+'</div><h3>'+esc(s.contact||"Контакт не заполнен")+'</h3><div class="small">'+(s.phone?"📞 "+esc(s.phone):"")+(s.email?"<br>✉ "+esc(s.email):"")+'</div><div class="small"><b>Скидка:</b> '+esc(s.discount||"—")+'</div>'+(details.length?'<div class="small" style="line-height:1.55">'+details.join("<br>")+'</div>':"")+'<div class="actions">'+actions.join("")+'</div></div>';
+}
 function external(q,cat){let p=`Найди в России производителей и крупных официальных импортеров ${cat?`оборудования категории «${cat}» `:"оборудования для пищевого производства "}по запросу клиента: «${q}». Нужны компании, реально поставляющие оборудование в РФ. Приоритет: производитель, официальный представитель или крупный импортер. Укажи название компании, бренд, официальный сайт, контакты, производителя и наличие российского представительства/импортера. Не включай маркетплейсы, мелкие магазины и случайных посредников.`;let y="https://yandex.ru/search/?text="+encodeURIComponent(p),g="https://chatgpt.com/?q="+encodeURIComponent(p);return `<div class="card external"><div class="title">Расширить поиск</div><h3>Не нашли подходящего поставщика?</h3><div class="small">Сервис подготовил профессиональный запрос на производителя или крупного импортёра в РФ.</div><div class="preview">${p}</div><div class="actions"><button class="primary" onclick="open('${y}')">🔎 Найти в Яндекс AI</button><button class="secondary" onclick="open('${g}')">🤖 Найти через ChatGPT</button></div></div>`}
 function open(u){window.open(u,"_blank")}
 async function copyQ(a){try{await navigator.clipboard.writeText(a.map(x=>"• "+x).join("\n"));alert("Вопросы скопированы")}catch(e){alert(a.join("\n"))}}
-document.getElementById("search").addEventListener("keydown",e=>{if(e.key==="Enter")search()});
+document.getElementById("search").addEventListener("keydown",e=>{if(e.key==="Enter")search()});\nloadApi();
 </script>
 </body></html>

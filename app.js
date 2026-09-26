@@ -47,18 +47,77 @@ function loadApi(){
  }).catch(function(e){API_ERROR=e.message||"Ошибка";message("Ошибка загрузки",API_ERROR);});
 }
 
+function stem(x){
+  x=norm(x);
+  if(x.length<=4)return x;
+  return x.slice(0,Math.max(4,x.length-2));
+}
+
 function score(q,c){
- q=norm(q);var best=0,h=[];
- [c.name].concat(c.kw).forEach(function(k){
-   var x=norm(k);if(!x)return;
-   if(q===x||q.indexOf(x)>=0){var p=x===norm(c.name)?100:(x.split(" ").length>1?80:45);if(p>best)best=p;h.push(k);}
- });
- q.split(" ").forEach(function(w){if(w.length>2&&c.kw.some(function(k){return norm(k).split(" ").indexOf(w)>=0;}))best+=10;});
- var n=norm(c.name);
- if((q.indexOf("тушен")>=0||q.indexOf("консерв")>=0)&&n.indexOf("автоклав")>=0)best+=30;
- if(q.indexOf("котлет")>=0&&n.indexOf("котлет")>=0)best+=30;
- if(q.indexOf("полуавтомат")>=0&&n.indexOf("полуавтомат")>=0)best+=30;
- return {score:Math.min(best,99),hits:h.slice(0,4)};
+  q=norm(q);
+  if(!q)return {score:0,hits:[]};
+
+  var qWords=q.split(" ").filter(function(w){return w.length>=3;});
+  var best=0;
+  var hits=[];
+
+  // Проверяем название КАТЕГОРИИ и её ключевики.
+  // Совпадение допускает словоформы: "автоклав" → "автоклавы",
+  // "вакуумный упаковщик" → "вакуумные упаковщики промышленные".
+  var terms=[c.name].concat(c.kw||[]);
+
+  terms.forEach(function(term){
+    var t=norm(term);
+    if(!t)return;
+
+    if(q===t || q.indexOf(t)>=0 || t.indexOf(q)>=0){
+      var p=(t===norm(c.name))?95:(t.split(" ").length>1?85:60);
+      if(p>best)best=p;
+      hits.push(term);
+      return;
+    }
+
+    var tWords=t.split(" ");
+    var matched=0;
+
+    qWords.forEach(function(qw){
+      var qs=stem(qw);
+      if(tWords.some(function(tw){
+        var ts=stem(tw);
+        return ts===qs || ts.indexOf(qs)===0 || qs.indexOf(ts)===0;
+      })) matched++;
+    });
+
+    if(matched>0){
+      var ratio=matched/Math.max(qWords.length,1);
+      var p2=(t===norm(c.name)?65:50)+Math.round(ratio*30);
+      if(p2>best)best=p2;
+      hits.push(term);
+    }
+  });
+
+  // Если несколько слов запроса совпали с названием категории,
+  // усиливаем результат, но только внутри этой категории.
+  var catWords=norm(c.name).split(" ");
+  var catMatches=0;
+  qWords.forEach(function(qw){
+    var qs=stem(qw);
+    if(catWords.some(function(cw){
+      var cs=stem(cw);
+      return cs===qs || cs.indexOf(qs)===0 || qs.indexOf(cs)===0;
+    })) catMatches++;
+  });
+
+  if(catMatches){
+    best=Math.max(best,50+Math.round(catMatches/Math.max(qWords.length,1)*45));
+  }
+
+  var n=norm(c.name);
+  if((q.indexOf("тушен")>=0||q.indexOf("консерв")>=0)&&n.indexOf("автоклав")>=0)best+=25;
+  if(q.indexOf("котлет")>=0&&n.indexOf("котлет")>=0)best+=25;
+  if(q.indexOf("полуавтомат")>=0&&n.indexOf("полуавтомат")>=0)best+=25;
+
+  return {score:Math.min(best,99),hits:Array.from(new Set(hits)).slice(0,4)};
 }
 
 function search(){

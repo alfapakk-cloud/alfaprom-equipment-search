@@ -17,18 +17,71 @@ function supplier(s){
 function build(items){
  C=[];
  var map={};
+
  (items||[]).forEach(function(row){
-   var cat=val(row.category);
+   var cat=val(row.category || row.categoryName || row.type || row.equipmentType);
    if(!cat)return;
+
    var d=row.categoryData||row.categoryInfo||row;
-   var r={category:cat,keywords:list(d.keywords),questions:list(d.questions),features:val(d.features),supplier:supplier(row.supplier)};
-   if(!map[cat])map[cat]={id:"cat-"+norm(cat).replace(/[^a-zа-я0-9]+/gi,"-"),name:cat,kw:[],q:[],note:"",rows:[]};
-   var c=map[cat]; c.rows.push(r);
-   r.keywords.forEach(function(x){if(c.kw.indexOf(x)<0)c.kw.push(x);});
-   r.questions.forEach(function(x){if(c.q.indexOf(x)<0)c.q.push(x);});
-   if(!c.note&&r.features)c.note=r.features;
+   var keywords=[];
+   var questions=[];
+   var features="";
+
+   // API может отдавать поля в разных именах — собираем только
+   // поля категории этой конкретной строки.
+   [
+     d.keywords,d.keyword,d.searchKeywords,d.keywordsForSearch,
+     row.keywords,row.searchKeywords,row.categoryKeywords
+   ].forEach(function(x){list(x).forEach(function(v){if(keywords.indexOf(v)<0)keywords.push(v);});});
+
+   [
+     d.questions,d.clientQuestions,d.whatToClarify,
+     row.questions,row.clientQuestions,row.whatToClarify
+   ].forEach(function(x){list(x).forEach(function(v){if(questions.indexOf(v)<0)questions.push(v);});});
+
+   features=val(d.features||d.categoryFeatures||d.featuresCategory||row.features||row.categoryFeatures);
+
+   // Даже если API не передал отдельное поле keywords, название категории
+   // всегда является поисковым термином.
+   if(keywords.indexOf(cat)<0)keywords.unshift(cat);
+
+   var r={
+     category:cat,
+     keywords:keywords,
+     questions:questions,
+     features:features,
+     supplier:supplier(row.supplier)
+   };
+
+   if(!map[cat]){
+     map[cat]={
+       id:"cat-"+norm(cat).replace(/[^a-zа-я0-9]+/gi,"-"),
+       name:cat,
+       kw:[],
+       q:[],
+       note:"",
+       rows:[]
+     };
+   }
+
+   var group=map[cat];
+   group.rows.push(r);
+
+   keywords.forEach(function(x){
+     if(group.kw.indexOf(x)<0)group.kw.push(x);
+   });
+   questions.forEach(function(x){
+     if(group.q.indexOf(x)<0)group.q.push(x);
+   });
+   if(!group.note&&features)group.note=features;
  });
- Object.keys(map).forEach(function(k){map[k].rows.sort(function(a,b){return rank(a.supplier.priority)-rank(b.supplier.priority);});C.push(map[k]);});
+
+ Object.keys(map).forEach(function(k){
+   map[k].rows.sort(function(a,b){
+     return rank(a.supplier.priority)-rank(b.supplier.priority);
+   });
+   C.push(map[k]);
+ });
 }
 
 function message(t,x){document.getElementById("results").innerHTML='<div class="card"><div class="title">'+esc(t)+'</div>'+esc(x)+'</div>';}
@@ -54,70 +107,60 @@ function stem(x){
 }
 
 function score(q,c){
-  q=norm(q);
-  if(!q)return {score:0,hits:[]};
+ q=norm(q);
+ if(!q)return {score:0,hits:[]};
 
-  var qWords=q.split(" ").filter(function(w){return w.length>=3;});
-  var best=0;
-  var hits=[];
+ var words=q.split(" ").filter(function(w){return w.length>=3;});
+ var best=0;
+ var hits=[];
 
-  // Проверяем название КАТЕГОРИИ и её ключевики.
-  // Совпадение допускает словоформы: "автоклав" → "автоклавы",
-  // "вакуумный упаковщик" → "вакуумные упаковщики промышленные".
-  var terms=[c.name].concat(c.kw||[]);
+ // Сначала точное/частичное совпадение с названием категории.
+ var category=norm(c.name);
+ if(q===category || category.indexOf(q)>=0 || q.indexOf(category)>=0){
+   best=98;
+   hits.push(c.name);
+ }
 
-  terms.forEach(function(term){
-    var t=norm(term);
-    if(!t)return;
+ // Затем ключевики ЭТОЙ категории.
+ (c.kw||[]).forEach(function(term){
+   var t=norm(term);
+   if(!t)return;
 
-    if(q===t || q.indexOf(t)>=0 || t.indexOf(q)>=0){
-      var p=(t===norm(c.name))?95:(t.split(" ").length>1?85:60);
-      if(p>best)best=p;
-      hits.push(term);
-      return;
-    }
+   if(q===t || t.indexOf(q)>=0 || q.indexOf(t)>=0){
+     best=Math.max(best,90);
+     hits.push(term);
+     return;
+   }
 
-    var tWords=t.split(" ");
-    var matched=0;
+   var tw=t.split(" ");
+   var matched=0;
 
-    qWords.forEach(function(qw){
-      var qs=stem(qw);
-      if(tWords.some(function(tw){
-        var ts=stem(tw);
-        return ts===qs || ts.indexOf(qs)===0 || qs.indexOf(ts)===0;
-      })) matched++;
-    });
+   words.forEach(function(w){
+     var stem=w.slice(0,Math.max(4,w.length-2));
+     if(tw.some(function(x){
+       var sx=x.slice(0,Math.max(4,x.length-2));
+       return sx===stem || sx.indexOf(stem)===0 || stem.indexOf(sx)===0;
+     })) matched++;
+   });
 
-    if(matched>0){
-      var ratio=matched/Math.max(qWords.length,1);
-      var p2=(t===norm(c.name)?65:50)+Math.round(ratio*30);
-      if(p2>best)best=p2;
-      hits.push(term);
-    }
-  });
+   if(matched){
+     var p=45+Math.round((matched/Math.max(words.length,1))*45);
+     best=Math.max(best,p);
+     hits.push(term);
+   }
+ });
 
-  // Если несколько слов запроса совпали с названием категории,
-  // усиливаем результат, но только внутри этой категории.
-  var catWords=norm(c.name).split(" ");
-  var catMatches=0;
-  qWords.forEach(function(qw){
-    var qs=stem(qw);
-    if(catWords.some(function(cw){
-      var cs=stem(cw);
-      return cs===qs || cs.indexOf(qs)===0 || qs.indexOf(cs)===0;
-    })) catMatches++;
-  });
+ // Базовые технологические словоформы.
+ var n=category;
+ if(q.indexOf("автоклав")>=0 && n.indexOf("автоклав")>=0)best=Math.max(best,98);
+ if(q.indexOf("вакуум")>=0 && n.indexOf("вакуум")>=0)best=Math.max(best,98);
+ if((q.indexOf("упаковщик")>=0||q.indexOf("вакуум")>=0) && n.indexOf("вакуум")>=0)best=Math.max(best,95);
+ if(q.indexOf("котлет")>=0 && n.indexOf("котлет")>=0)best=Math.max(best,98);
+ if(q.indexOf("запай")>=0 && n.indexOf("запай")>=0)best=Math.max(best,98);
+ if(q.indexOf("термоформ")>=0 && n.indexOf("термоформ")>=0)best=Math.max(best,98);
+ if(q.indexOf("шприц")>=0 && n.indexOf("шприц")>=0)best=Math.max(best,98);
 
-  if(catMatches){
-    best=Math.max(best,50+Math.round(catMatches/Math.max(qWords.length,1)*45));
-  }
-
-  var n=norm(c.name);
-  if((q.indexOf("тушен")>=0||q.indexOf("консерв")>=0)&&n.indexOf("автоклав")>=0)best+=25;
-  if(q.indexOf("котлет")>=0&&n.indexOf("котлет")>=0)best+=25;
-  if(q.indexOf("полуавтомат")>=0&&n.indexOf("полуавтомат")>=0)best+=25;
-
-  return {score:Math.min(best,99),hits:Array.from(new Set(hits)).slice(0,4)};
+ return {score:Math.min(best,99),hits:Array.from(new Set(hits)).slice(0,5)};
 }
 
 function search(){

@@ -31,8 +31,8 @@ input{flex:1;border:0;outline:0;font-size:17px;padding:14px;background:transpare
 <footer>АЛЬФАПРОМ · база поставщиков подключена к Google Sheets через Apps Script</footer>
 <script>
 const API_URL="https://script.google.com/macros/s/AKfycbyfAoAmHOiM2O18kEh-AAjzNKv5reH1RErFZp0-wNKKKJbSG3kxW9el8bqTMo8ZzI8/exec";
-let S={};
 let C=[];
+let ROWS=[];
 let API_LOADED=false;
 let API_ERROR="";
 
@@ -47,12 +47,12 @@ function toList(x){
   return s.split(/\\n|[;\\r]+/).map(x=>x.trim()).filter(Boolean);
 }
 function priorityRank(x){return ({A:1,B:2,C:3})[String(x||"").trim().toUpperCase()]||9}
-function mergeFirst(a,b){return val(a)||val(b)}
+
 function normalizeSupplier(s){
-  const name=val(s.name)||"Без названия";
+  s=s||{};
   return {
-    name,
-    brand:val(s.brand)||val(s.groups),
+    name:val(s.name)||"Без названия",
+    brand:val(s.brand),
     country:val(s.country),
     legalName:val(s.legalName),
     site:val(s.site),
@@ -60,7 +60,6 @@ function normalizeSupplier(s){
     discount:val(s.discount),
     groups:val(s.groups),
     workFeatures:val(s.workFeatures),
-    personalCabinet:val(s.personalCabinet),
     additionalInfo:val(s.additionalInfo),
     contact:val(s.mainContact),
     advantages:val(s.advantages),
@@ -82,35 +81,68 @@ function normalizeSupplier(s){
     priority:val(s.priority).toUpperCase()
   };
 }
+
+/*
+  КРИТИЧЕСКОЕ ПРАВИЛО:
+  Один элемент API = одна исходная строка Google Sheets.
+  Мы НЕ переносим данные поставщика в глобальный S и НЕ объединяем строки
+  по имени поставщика. Категория, вопросы, особенности и поставщик всегда
+  остаются связаны с одной и той же строкой.
+*/
 function buildData(items){
-  const cats=new Map();
-  const suppliers=new Map();
-  (Array.isArray(items)?items:[]).forEach(row=>{
-    const cat=val(row.category)||"Без категории";
+  ROWS=(Array.isArray(items)?items:[]).map((row,index)=>{
+    const category=val(row.category);
     const cm=row.categoryData||row.categoryInfo||row;
-    if(!cats.has(cat)) cats.set(cat,{id:"cat-"+n(cat).replace(/[^a-z0-9]+/g,"-"),name:cat,kw:[],q:[],note:"",s:[]});
-    const c=cats.get(cat);
-    c.kw=[...new Set([...c.kw,...toList(cm.keywords)])];
-    c.q=[...new Set([...c.q,...toList(cm.questions)])];
-    c.note=mergeFirst(c.note,cm.features);
-    const sp=normalizeSupplier(row.supplier||{});
-    const key=cat+"\\u0000"+sp.name;
-    if(!suppliers.has(key)){
-      suppliers.set(key,sp);
-      c.s.push(sp);
-    }else{
-      const old=suppliers.get(key);
-      Object.keys(sp).forEach(k=>{if(!old[k]&&sp[k])old[k]=sp[k]});
+
+    // Пустая категория = строка некорректна. Не пытаемся угадать категорию.
+    if(!category) return null;
+
+    const supplier=normalizeSupplier(row.supplier||{});
+
+    return {
+      rowIndex:index,
+      category,
+      categoryNorm:n(category),
+      keywords:toList(cm.keywords),
+      questions:toList(cm.questions),
+      features:val(cm.features),
+      supplier
+    };
+  }).filter(Boolean);
+
+  const catMap=new Map();
+
+  ROWS.forEach(row=>{
+    if(!catMap.has(row.category)){
+      catMap.set(row.category,{
+        id:"cat-"+n(row.category).replace(/[^a-z0-9а-я]+/gi,"-"),
+        name:row.category,
+        kw:[],
+        q:[],
+        note:"",
+        rows:[]
+      });
     }
+
+    const c=catMap.get(row.category);
+    c.rows.push(row);
+
+    // Объединяем только одинаковую категорию.
+    // Данные другой категории сюда попасть не могут.
+    c.kw=[...new Set([...c.kw,...row.keywords])];
+    c.q=[...new Set([...c.q,...row.questions])];
+    if(!c.note && row.features) c.note=row.features;
   });
-  C=[...cats.values()].map(c=>{
+
+  C=[...catMap.values()].map(c=>{
+    c.s=c.rows.map(r=>r.supplier);
     c.s.sort((a,b)=>priorityRank(a.priority)-priorityRank(b.priority));
     return c;
   });
-  S={};
-  C.forEach(c=>c.s.forEach(s=>{S[s.name]=s}));
 }
+
 async function loadApi(){
+
   const results=document.getElementById("results");
   results.innerHTML='<div class="card"><div class="title">Подключение</div>Загружаю актуальную базу поставщиков АЛЬФАПРОМ…</div>';
   try{
@@ -129,12 +161,41 @@ async function loadApi(){
 }
 
 function n(x){return x.toLowerCase().replace(/ё/g,"е").replace(/[^\p{L}\p{N}\s-]/gu," ").replace(/\s+/g," ").trim()}
-function score(query,c){let q=n(query), best=0,hits=[];let all=[c.name,...c.kw];all.forEach(k=>{let x=n(k);if(q.includes(x)){let v=x===n(c.name)?100:x.split(" ").length>1?80:45;if(v>best)best=v;hits.push(k)}});let ws=q.split(" ").filter(x=>x.length>2),over=0;ws.forEach(w=>{if(all.some(k=>n(k).split(" ").includes(w)))over++});best+=Math.min(over*10,30);
-if((q.includes("небольш")||q.includes("маленьк")||q.includes("компакт"))&&c.id==="vac-small")best+=25;
-if((q.includes("небольш")||q.includes("ручн")||q.includes("настольн"))&&c.id==="tray-small")best+=25;
-if(q.includes("конвейер")&&c.id==="tray-ind")best+=25;if(q.includes("полуавтомат")&&c.id==="tray-semi")best+=30;
-if((q.includes("тушен")||q.includes("консерв"))&&c.id==="autoclave")best+=30;if(q.includes("котлет")&&c.id==="cutlet")best+=30;
-return {score:Math.min(best,99),hits:[...new Set(hits)].slice(0,4)}}
+function score(query,c){
+  const q=n(query);
+  let best=0,hits=[];
+
+  // Ищем только по данным ЭТОЙ категории.
+  const all=[c.name,...c.kw];
+
+  all.forEach(k=>{
+    const x=n(k);
+    if(!x) return;
+    if(q===x || q.includes(x)){
+      const v=x===n(c.name)?100:(x.split(" ").length>1?80:45);
+      if(v>best) best=v;
+      hits.push(k);
+    }
+  });
+
+  const ws=q.split(" ").filter(x=>x.length>2);
+  let over=0;
+  ws.forEach(w=>{
+    if(all.some(k=>n(k).split(" ").includes(w))) over++;
+  });
+  best+=Math.min(over*10,30);
+
+  // Дополнительные правила — только по названию самой категории.
+  const cn=n(c.name);
+  if((q.includes("тушен")||q.includes("консерв"))&&cn.includes("автоклав"))best+=30;
+  if(q.includes("котлет")&&cn.includes("котлет"))best+=30;
+  if((q.includes("небольш")||q.includes("маленьк")||q.includes("компакт"))&&cn.includes("вакуум")&&cn.includes("небольш"))best+=25;
+  if((q.includes("небольш")||q.includes("ручн")||q.includes("настольн"))&&cn.includes("запай")&&cn.includes("небольш"))best+=25;
+  if(q.includes("конвейер")&&cn.includes("запай")&&cn.includes("промыш"))best+=25;
+  if(q.includes("полуавтомат")&&cn.includes("полуавтомат"))best+=30;
+
+  return {score:Math.min(best,99),hits:[...new Set(hits)].slice(0,4)};
+}
 function demo(x){document.getElementById("search").value=x;search()}
 function search(){
   let q=document.getElementById("search").value.trim();
@@ -153,13 +214,19 @@ function search(){
   document.getElementById("results").innerHTML=h;
 }
 function pick(id){
-  let c=C.find(x=>x.id===id),q=document.getElementById("search").value;
+  const c=C.find(x=>x.id===id);
+  const q=document.getElementById("search").value;
   if(c) document.getElementById("results").innerHTML=render(c,q);
 }
 function render(c,q){
-  let h='<div class="card"><div class="title">Что уточнить у клиента</div><div class="questions">'+c.q.map(x=>'<div class="q">☐ '+esc(x)+'</div>').join("")+'</div><div class="actions"><button class="secondary" onclick=\'copyQ('+JSON.stringify(c.q)+')\'>Скопировать вопросы</button></div></div>';
+  const hQuestions=c.q.map(x=>'<div class="q">☐ '+esc(x)+'</div>').join("");
+  let h='<div class="card"><div class="title">Что уточнить у клиента</div><div class="questions">'+hQuestions+'</div><div class="actions"><button class="secondary" onclick=\'copyQ('+JSON.stringify(c.q)+')\'>Скопировать вопросы</button></div></div>';
+
   h+='<div class="card"><div class="title">Особенности категории</div>'+esc(c.note||"Уточнить задачу клиента и подобрать оборудование по параметрам.")+'</div>';
-  h+='<div class="card"><div class="title">Поставщики</div><div class="suppliers">'+c.s.map(s=>supplier(s)).join("")+'</div></div>';
+
+  // Поставщики берутся ТОЛЬКО из строк этой категории.
+  h+='<div class="card"><div class="title">Поставщики</div><div class="suppliers">'+c.rows.map(r=>supplier(r.supplier)).join("")+'</div></div>';
+
   return h+external(q,c.name);
 }
 function supplier(s){

@@ -158,8 +158,11 @@ function search(){
  var q=document.getElementById("search").value.trim();
  if(!q){document.getElementById("results").innerHTML="";return;}
  if(!API_LOADED){message("База ещё не готова",API_ERROR||"Подождите окончания загрузки данных.");return;}
- var a=C.map(function(c){return {c:c,m:score(q,c)};}).filter(function(x){return x.m.score>=25;}).sort(function(a,b){return b.m.score-a.m.score;});
- if(!a.length){document.getElementById("results").innerHTML='<div class="card external"><h3>Подходящая категория не найдена</h3></div>';return;}
+ var a=C.map(function(c){return {c:c,m:score(q,c)};}).filter(function(x){return x.m.score>=50;}).sort(function(a,b){return b.m.score-a.m.score;});
+ if(!a.length){
+ document.getElementById("results").innerHTML='<div class="card external"><h3>В базе АЛЬФАПРОМ подходящее оборудование не найдено</h3><div class="small">Можно продолжить поиск через внешние ИИ-сервисы:</div><div class="actions"><button class="primary" onclick="externalSearch(\'alice\')">🔎 Поиск с Алисой AI</button><button class="secondary" onclick="externalSearch(\'chatgpt\')">🤖 Спросить ChatGPT</button></div></div>';
+ return;
+}
  render(a[0].c,q,a[0].m);
 }
 
@@ -177,7 +180,7 @@ function questionGroups(items){
 function renderQuestionList(title,items){
  var h='<div class="question-col"><div class="question-heading">'+esc(title)+'</div>';
  if(!items.length)h+='<div class="question-empty">Нет отдельных вопросов в базе.</div>';
- else items.forEach(function(x){h+='<div class="q">☐ '+esc(x)+'</div>';});
+ else items.forEach(function(x,i){h+='<div class="question-row"><span class="question-num">'+(i+1)+'</span><span>'+esc(x)+'</span></div>';});
  return h+'</div>';
 }
 function renderQuestions(items){
@@ -186,9 +189,14 @@ function renderQuestions(items){
 }
 function externalSearch(type){
  var q=val(document.getElementById("search").value);if(!q)return;
- var prompt="Подбери оборудование для задачи клиента: "+q+". Найди реальные модели, производителей или поставщиков. Укажи технические характеристики, производительность и ссылки на источники.";
- var url=type==="alice"?"https://yandex.ru/search/?text="+encodeURIComponent(prompt):"https://chatgpt.com/?q="+encodeURIComponent(prompt);
- window.open(url,"_blank");
+ var prompt="Я подбираю оборудование для клиента в России. В базе АЛЬФАПРОМ подходящего оборудования не найдено. Помоги найти подходящее оборудование: "+q+". Найди реальные модели, производителей или крупных поставщиков. Укажи ключевые технические характеристики, производительность, ограничения по применению и ссылки на источники. Не выдумывай модели и характеристики.";
+ if(type==="alice"){
+  try{navigator.clipboard.writeText(prompt);}catch(e){}
+  window.open("https://alice.yandex.ru/","_blank");
+  message("Запрос для Алисы готов","Текст запроса скопирован. Вставьте его в чат Алисы AI.");
+ }else{
+  window.open("https://chatgpt.com/?q="+encodeURIComponent(prompt),"_blank");
+ }
 }
 function render(c,q,m){
  var h='<div class="card"><div class="title">Найдено</div><h2>'+esc(c.name)+'</h2><span class="pill">Совпадение '+m.score+'%</span><div class="why">Совпало: '+esc(m.hits.join(", "))+'</div></div>';

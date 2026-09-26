@@ -15,75 +15,66 @@ function supplier(s){
 }
 
 function build(items){
- C=[];
- var map={};
+  C=[];
+  var map={};
 
- (items||[]).forEach(function(row){
-   var cat=val(row.category || row.categoryName || row.type || row.equipmentType);
-   if(!cat)return;
+  (items||[]).forEach(function(item){
+    var category=item && item.category ? item.category : {};
+    var supplierData=item && item.supplier ? item.supplier : {};
 
-   var d=row.categoryData||row.categoryInfo||row;
-   var keywords=[];
-   var questions=[];
-   var features="";
+    var cat=val(category.name);
+    if(!cat)return;
 
-   // API может отдавать поля в разных именах — собираем только
-   // поля категории этой конкретной строки.
-   [
-     d.keywords,d.keyword,d.searchKeywords,d.keywordsForSearch,
-     row.keywords,row.searchKeywords,row.categoryKeywords
-   ].forEach(function(x){list(x).forEach(function(v){if(keywords.indexOf(v)<0)keywords.push(v);});});
+    var keywords=list(category.keywords);
+    var questions=list(category.questions);
+    var features=val(category.features);
 
-   [
-     d.questions,d.clientQuestions,d.whatToClarify,
-     row.questions,row.clientQuestions,row.whatToClarify
-   ].forEach(function(x){list(x).forEach(function(v){if(questions.indexOf(v)<0)questions.push(v);});});
+    // Название категории всегда является поисковым термином.
+    if(keywords.map(norm).indexOf(norm(cat))<0){
+      keywords.unshift(cat);
+    }
 
-   features=val(d.features||d.categoryFeatures||d.featuresCategory||row.features||row.categoryFeatures);
+    var r={
+      category:cat,
+      keywords:keywords,
+      questions:questions,
+      features:features,
+      supplier:supplier(supplierData)
+    };
 
-   // Даже если API не передал отдельное поле keywords, название категории
-   // всегда является поисковым термином.
-   if(keywords.indexOf(cat)<0)keywords.unshift(cat);
+    var key=norm(cat);
+    if(!map[key]){
+      map[key]={
+        id:"cat-"+key.replace(/[^a-zа-я0-9]+/gi,"-"),
+        name:cat,
+        kw:[],
+        q:[],
+        note:"",
+        rows:[]
+      };
+    }
 
-   var r={
-     category:cat,
-     keywords:keywords,
-     questions:questions,
-     features:features,
-     supplier:supplier(row.supplier)
-   };
+    var group=map[key];
+    group.rows.push(r);
 
-   if(!map[cat]){
-     map[cat]={
-       id:"cat-"+norm(cat).replace(/[^a-zа-я0-9]+/gi,"-"),
-       name:cat,
-       kw:[],
-       q:[],
-       note:"",
-       rows:[]
-     };
-   }
+    keywords.forEach(function(x){
+      if(group.kw.map(norm).indexOf(norm(x))<0)group.kw.push(x);
+    });
 
-   var group=map[cat];
-   group.rows.push(r);
+    questions.forEach(function(x){
+      if(group.q.indexOf(x)<0)group.q.push(x);
+    });
 
-   keywords.forEach(function(x){
-     if(group.kw.indexOf(x)<0)group.kw.push(x);
-   });
-   questions.forEach(function(x){
-     if(group.q.indexOf(x)<0)group.q.push(x);
-   });
-   if(!group.note&&features)group.note=features;
- });
+    if(!group.note&&features)group.note=features;
+  });
 
- Object.keys(map).forEach(function(k){
-   map[k].rows.sort(function(a,b){
-     return rank(a.supplier.priority)-rank(b.supplier.priority);
-   });
-   C.push(map[k]);
- });
+  Object.keys(map).forEach(function(k){
+    map[k].rows.sort(function(a,b){
+      return rank(a.supplier.priority)-rank(b.supplier.priority);
+    });
+    C.push(map[k]);
+  });
 }
-
 function message(t,x){document.getElementById("results").innerHTML='<div class="card"><div class="title">'+esc(t)+'</div>'+esc(x)+'</div>';}
 
 function loadApi(){

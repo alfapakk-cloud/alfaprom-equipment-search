@@ -248,6 +248,7 @@ function supplier(s){
 function external(q,cat){let p=`Найди в России производителей и крупных официальных импортеров ${cat?`оборудования категории «${cat}» `:"оборудования для пищевого производства "}по запросу клиента: «${q}». Нужны компании, реально поставляющие оборудование в РФ. Приоритет: производитель, официальный представитель или крупный импортер. Укажи название компании, бренд, официальный сайт, контакты, производителя и наличие российского представительства/импортера. Не включай маркетплейсы, мелкие магазины и случайных посредников.`;let y="https://yandex.ru/search/?text="+encodeURIComponent(p),g="https://chatgpt.com/?q="+encodeURIComponent(p);return `<div class="card external"><div class="title">Расширить поиск</div><h3>Не нашли подходящего поставщика?</h3><div class="small">Сервис подготовил профессиональный запрос на производителя или крупного импортёра в РФ.</div><div class="preview">${p}</div><div class="actions"><button class="primary" onclick="open('${y}')">🔎 Найти в Яндекс AI</button><button class="secondary" onclick="open('${g}')">🤖 Найти через ChatGPT</button></div></div>`}
 function open(u){window.open(u,"_blank")}
 async function copyQ(a){try{await navigator.clipboard.writeText(a.map(x=>"• "+x).join("\n"));alert("Вопросы скопированы")}catch(e){alert(a.join("\n"))}}
-document.getElementById("search").addEventListener("keydown",e=>{if(e.key==="Enter")search()});\nloadApi();
+document.getElementById("search").addEventListener("keydown",e=>{if(e.key==="Enter")search()});
+loadApi();
 </script>
 </body></html>

@@ -1,4 +1,6 @@
 var API_URL="https://script.google.com/macros/s/AKfycbyfAoAmHOiM2O18kEh-AAjzNKv5reH1RErFZp0-wNKKKJbSG3kxW9el8bqTMo8ZzI8/exec";
+var GOOGLE_CLIENT_ID="873194848568-i3ee7nonqb2j1j4r97pqheddf2f62vbi.apps.googleusercontent.com";
+var GOOGLE_ID_TOKEN="";
 var C=[];
 var API_LOADED=false;
 var API_ERROR="";
@@ -77,41 +79,64 @@ function build(items){
 }
 function message(t,x){document.getElementById("results").innerHTML='<div class="card"><div class="title">'+esc(t)+'</div>'+esc(x)+'</div>';}
 
+function handleGoogleCredential(response){
+  GOOGLE_ID_TOKEN=val(response&&response.credential);
+  if(!GOOGLE_ID_TOKEN){
+    message("Ошибка входа","Google не вернул токен авторизации.");
+    return;
+  }
+  var auth=document.getElementById("authText");
+  if(auth)auth.textContent="Google-аккаунт подтверждён. Проверяю доступ к базе...";
+  loadApi();
+}
+
+function initGoogleLogin(){
+  if(typeof google==="undefined" || !google.accounts || !google.accounts.id){
+    setTimeout(initGoogleLogin,300);
+    return;
+  }
+  google.accounts.id.initialize({
+    client_id:GOOGLE_CLIENT_ID,
+    callback:handleGoogleCredential,
+    auto_select:false,
+    cancel_on_tap_outside:false
+  });
+  google.accounts.id.renderButton(
+    document.getElementById("googleButton"),
+    {theme:"outline",size:"large",text:"signin_with",shape:"rectangular",logo_alignment:"left"}
+  );
+}
+
 function loadApi(){
- message("Подключение","Загружаю актуальную базу поставщиков АЛЬФАПРОМ...");
+  if(!GOOGLE_ID_TOKEN){
+    message("Требуется вход","Войдите через Google, чтобы получить доступ к базе.");
+    return;
+  }
 
- // Если сервис открыт внутри Google Apps Script,
- // используем google.script.run — без CORS и без передачи Google-сессии через fetch.
- if(typeof google !== "undefined" && google.script && google.script.run){
-   google.script.run
-     .withSuccessHandler(function(d){
-       if(!d||d.success!==true||!Array.isArray(d.items)){
-         throw Error((d&&d.error)||"API вернул неожиданный формат");
-       }
-       build(d.items);
-       if(!C.length)throw Error("API не вернул категории");
-       API_LOADED=true;
-       message("Готово","База поставщиков загружена: "+d.items.length+" записей.");
-     })
-     .withFailureHandler(function(e){
-       API_ERROR=(e&&e.message)||"Ошибка связи с Apps Script";
-       message("Ошибка загрузки",API_ERROR);
-     })
-     .getSecureDatabase();
-   return;
- }
+  message("Проверка доступа","Проверяю ваш Google-аккаунт и доступ к базе АЛЬФАПРОМ...");
 
- // Резервный режим для прямого API.
- fetch(API_URL+"?t="+Date.now(),{cache:"no-store"}).then(function(r){
-   if(!r.ok)throw Error("HTTP "+r.status);
-   return r.json();
- }).then(function(d){
-   if(!d||d.success!==true||!Array.isArray(d.items))throw Error((d&&d.error)||"API вернул неожиданный формат");
-   build(d.items);
-   if(!C.length)throw Error("API не вернул категории");
-   API_LOADED=true;
-   message("Готово","База поставщиков загружена: "+d.items.length+" записей.");
- }).catch(function(e){API_ERROR=e.message||"Ошибка";message("Ошибка загрузки",API_ERROR);});
+  fetch(API_URL+"?token="+encodeURIComponent(GOOGLE_ID_TOKEN)+"&t="+Date.now(),{cache:"no-store"}).then(function(r){
+    if(!r.ok)throw Error("HTTP "+r.status);
+    return r.json();
+  }).then(function(d){
+    if(!d||d.success!==true||!Array.isArray(d.items)){
+      if(d&&d.accessDenied){
+        throw Error(d.error||"Доступ запрещён");
+      }
+      throw Error((d&&d.error)||"API вернул неожиданный формат");
+    }
+    build(d.items);
+    if(!C.length)throw Error("API не вернул категории");
+    API_LOADED=true;
+    var auth=document.getElementById("authText");
+    if(auth)auth.textContent="Доступ разрешён. База поставщиков загружена.";
+    message("Готово","База поставщиков загружена: "+d.items.length+" записей.");
+  }).catch(function(e){
+    API_ERROR=e.message||"Ошибка";
+    message("Доступ не получен",API_ERROR);
+    var auth=document.getElementById("authText");
+    if(auth)auth.textContent="Доступ не получен. Если ваш Google-аккаунт есть в листе «❗️⚙️Доступ» со статусом «Да», попробуйте ещё раз.";
+  });
 }
 
 function stem(x){
@@ -252,4 +277,4 @@ function render(c,q,m){
 
 function demo(x){document.getElementById("search").value=x;search();}
 document.getElementById("search").addEventListener("keydown",function(e){if(e.key==="Enter")search();});
-loadApi();
+initGoogleLogin();

@@ -13,7 +13,7 @@ function rank(x){x=val(x).toUpperCase();return x==="A"?1:x==="B"?2:x==="C"?3:9;}
 
 function supplier(s){
  s=s||{};
- return {name:val(s.name)||"Без названия",brand:val(s.brand),country:val(s.country),legalName:val(s.legalName),site:val(s.site),status:val(s.status),discount:val(s.discount),groups:val(s.groups),workFeatures:val(s.workFeatures),contact:val(s.mainContact),advantages:val(s.advantages),note:val(s.comments),phone:val(s.phone),email:val(s.email),messenger:val(s.messenger),priority:val(s.priority).toUpperCase()};
+ return {name:val(s.name)||"Без названия",brand:val(s.brand),country:val(s.country),legalName:val(s.legalName),site:val(s.site),status:val(s.status),discount:val(s.discount),groups:val(s.groups),workFeatures:val(s.workFeatures),contact:val(s.mainContact),advantages:val(s.advantages),note:val(s.comments),phone:val(s.phone),email:val(s.email),messenger:val(s.messenger),priority:val(s.priority).toUpperCase(),lkLink:val(s.personalCabinet),login:val(s.login),additionalInfo:val(s.additionalInfo),department:val(s.department),additionalContacts:val(s.additionalContacts),serviceCenter:val(s.serviceCenter),showroom:val(s.showroom),warehouse:val(s.warehouse),pickup:val(s.pickup),deliveryToTK:val(s.deliveryToTK),deliveryTerms:val(s.deliveryTerms),shipmentRequest:val(s.shipmentRequest),accounting:val(s.accounting),categoryId:val(s.categoryId)};
 }
 
 function build(items){
@@ -265,12 +265,42 @@ function externalSearch(type){
  }
 }
 
+var SUPPLIER_MODAL_DATA=[];
+function safeUrl(x){x=val(x);return /^https?:\\/\\//i.test(x)?x:"";}
+function linkHtml(label,url){url=safeUrl(url);return url?'<a class="supplier-link" href="'+esc(url)+'" target="_blank" rel="noopener noreferrer">'+esc(label)+'</a>':"";}
+function fieldRow(label,value){value=val(value);return value?'<div class="detail-row"><div class="detail-label">'+esc(label)+'</div><div class="detail-value">'+esc(value)+'</div></div>':"";}
+function supplierCard(s,index){
+ var h='<div class="supplier">';
+ h+='<div class="prio '+esc(s.priority)+'">'+esc(s.priority||"—")+' · '+esc(s.name)+'</div>';
+ if(s.contact)h+='<div class="supplier-key"><b>Основной контакт:</b> '+esc(s.contact)+'</div>';
+ if(s.country)h+='<div class="supplier-key">🌍 <b>Страна:</b> '+esc(s.country)+'</div>';
+ h+='<div class="supplier-key">🏷️ <b>Наша скидка:</b> '+esc(s.discount||"—")+'</div>';
+ if(s.site)h+='<div class="supplier-links">'+linkHtml("🌐 Сайт",s.site)+'</div>';
+ if(s.lkLink)h+='<div class="supplier-links">'+linkHtml("🔗 Личный кабинет",s.lkLink)+'</div>';
+ if(s.login)h+='<div class="supplier-key">👤 <b>Логин:</b> '+esc(s.login)+'</div>';
+ h+='<div class="supplier-key">🔑 <b>Пароль:</b> Смотри в таблице поставщиков</div>';
+ if(s.workFeatures)h+='<div class="supplier-key">⚠️ <b>Особенности работы:</b> '+esc(s.workFeatures)+'</div>';
+ if(s.advantages)h+='<div class="supplier-key">🔥 <b>Дополнительные преимущества:</b> '+esc(s.advantages)+'</div>';
+ h+='<button class="secondary details-btn" onclick="openSupplierModalByIndex('+index+')">Подробнее</button>';
+ return h+'</div>';
+}
+function renderSupplierModal(s){
+ var h='<div class="modal-overlay" id="supplierModal" onclick="if(event.target===this)closeSupplierModal()"><div class="supplier-modal">';
+ h+='<div class="modal-head"><div><div class="title">Поставщик</div><h2>'+esc(s.priority||"—")+' · '+esc(s.name)+'</h2></div><button class="secondary modal-close" onclick="closeSupplierModal()">✕</button></div>';
+ h+='<div class="detail-grid">';
+ h+=fieldRow("Основной контакт",s.contact);h+=fieldRow("Страна",s.country);h+=fieldRow("Наша скидка",s.discount);h+=fieldRow("Сайт",s.site);h+=fieldRow("Личный кабинет",s.lkLink);h+=fieldRow("Логин",s.login);h+=fieldRow("Юридическое лицо",s.legalName);h+=fieldRow("Статус поставщика",s.status);h+=fieldRow("Основные группы оборудования",s.groups);h+=fieldRow("Особенности работы",s.workFeatures);h+=fieldRow("Дополнительные преимущества",s.advantages);h+=fieldRow("Общие комментарии",s.note);h+=fieldRow("Отдел / направление",s.department);h+=fieldRow("Телефон",s.phone);h+=fieldRow("Email",s.email);h+=fieldRow("Мессенджер",s.messenger);h+=fieldRow("Дополнительные контакты",s.additionalContacts);h+=fieldRow("Адрес СЦ",s.serviceCenter);h+=fieldRow("Адрес шоурума",s.showroom);h+=fieldRow("Адрес склада",s.warehouse);h+=fieldRow("Адрес самовывоза",s.pickup);h+=fieldRow("Доставка до ТК",s.deliveryToTK);h+=fieldRow("Условия доставки",s.deliveryTerms);h+=fieldRow("Заявка на отгрузку",s.shipmentRequest);h+=fieldRow("Бухгалтерия",s.accounting);h+=fieldRow("Доп. информация",s.additionalInfo);h+=fieldRow("ID категории",s.categoryId);
+ h+='</div></div></div>';return h;
+}
+function openSupplierModalByIndex(index){var s=SUPPLIER_MODAL_DATA[index];if(!s)return;var root=document.getElementById("supplierModalRoot");if(!root)return;root.innerHTML=renderSupplierModal(s);document.body.style.overflow="hidden";}
+function closeSupplierModal(){var root=document.getElementById("supplierModalRoot");if(root)root.innerHTML="";document.body.style.overflow="";}
+document.addEventListener("keydown",function(e){if(e.key==="Escape")closeSupplierModal();});
 function render(c,q,m){
  var h='<div class="card"><div class="title">Найдено</div><h2>'+esc(c.name)+'</h2><span class="pill">Совпадение '+m.score+'%</span><div class="why">Совпало: '+esc(m.hits.join(", "))+'</div></div>';
  h+='<div class="card"><div class="title">Что уточнить у клиента</div>'+renderQuestions(c.q)+'</div>';
  h+='<div class="card"><div class="title">Особенности категории</div>'+esc(c.note||"Уточнить задачу клиента.")+'</div>';
  h+='<div class="card"><div class="title">Поставщики</div><div class="suppliers">';
- c.rows.forEach(function(r){var s=r.supplier;h+='<div class="supplier"><div class="prio '+esc(s.priority)+'">'+esc(s.priority||"—")+' · '+esc(s.name)+'</div><div class="small">'+esc(s.brand)+'</div><h3>'+esc(s.contact||"Контакт не заполнен")+'</h3><div class="small">'+(s.phone?"📞 "+esc(s.phone):"")+(s.email?"<br>✉ "+esc(s.email):"")+'</div><div class="small"><b>Скидка:</b> '+esc(s.discount||"—")+'</div>'+(s.country?'<div class="small">🌍 '+esc(s.country)+'</div>':"")+(s.workFeatures?'<div class="small">Особенности: '+esc(s.workFeatures)+'</div>':"")+(s.advantages?'<div class="small">Преимущества: '+esc(s.advantages)+'</div>':"")+'</div>';});
+ SUPPLIER_MODAL_DATA=c.rows.map(function(r){return r.supplier;});
+ c.rows.forEach(function(r,i){h+=supplierCard(r.supplier,i);});
  h+='</div></div>';
  document.getElementById("results").innerHTML=h;
 }

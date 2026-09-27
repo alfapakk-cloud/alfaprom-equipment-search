@@ -188,14 +188,19 @@ function renderQuestions(items){
  return '<div class="questions-grid">'+renderQuestionList("Универсальные вопросы",g.universal)+renderQuestionList("Специфичные вопросы по подбору",g.specific)+'</div>';
 }
 function externalSearch(type){
- var q=val(document.getElementById("search").value);if(!q)return;
+ var q=val(document.getElementById("search").value);
+ if(!q)return;
+
  var prompt="Я подбираю оборудование для клиента в России. В базе АЛЬФАПРОМ подходящего оборудования не найдено. Помоги найти подходящее оборудование: "+q+". Найди реальные модели, производителей или крупных поставщиков. Укажи ключевые технические характеристики, производительность, ограничения по применению и ссылки на источники. Не выдумывай модели и характеристики.";
+
  if(type==="alice"){
-  try{navigator.clipboard.writeText(prompt);}catch(e){}
-  window.open("https://alice.yandex.ru/","_blank");
-  message("Запрос для Алисы готов","Текст запроса скопирован. Вставьте его в чат Алисы AI.");
+   // Открываем именно веб-страницу Яндекса, а не приложение.
+   // Запрос уже находится в URL, поэтому Алиса/Поиск получает его сразу.
+   var url="https://yandex.ru/search/?text="+encodeURIComponent(prompt);
+   window.open(url,"_blank","noopener,noreferrer");
  }else{
-  window.open("https://chatgpt.com/?q="+encodeURIComponent(prompt),"_blank");
+   var url="https://chatgpt.com/?q="+encodeURIComponent(prompt);
+   window.open(url,"_blank","noopener,noreferrer");
  }
 }
 function render(c,q,m){

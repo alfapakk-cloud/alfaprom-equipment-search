@@ -26,8 +26,14 @@ input{flex:1;border:0;outline:0;font-size:17px;padding:14px;background:transpare
 <div class="search"><input id="search" placeholder="например: небольшой вакууматор для мяса"><button class="primary" onclick="search()">НАЙТИ</button></div>
 <div class="examples">Примеры: <span onclick="demo('небольшой вакууматор для мяса')">небольшой вакууматор для мяса</span> · <span onclick="demo('запайщик лотков для мяса 500 шт в час')">запайщик лотков 500 шт/час</span> · <span onclick="demo('автоклав для тушенки')">автоклав для тушенки</span></div>
 </section>
+<div id="auth" class="card" style="max-width:520px;margin:0 auto 18px;text-align:center;">
+<div class="title">Доступ к базе</div>
+<div id="authText" class="small" style="margin-bottom:12px">Войдите через Google, чтобы открыть базу поставщиков АЛЬФАПРОМ.</div>
+<div id="googleButton" style="display:flex;justify-content:center"></div>
+</div>
 <div id="results"></div>
 </main>
 <footer>АЛЬФАПРОМ · база поставщиков подключена к Google Sheets через Apps Script</footer>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <script src="app.js"></script>
 </body></html>

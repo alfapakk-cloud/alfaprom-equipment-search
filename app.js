@@ -1,7 +1,6 @@
 var API_URL="https://script.google.com/macros/s/AKfycbyfAoAmHOiM2O18kEh-AAjzNKv5reH1RErFZp0-wNKKKJbSG3kxW9el8bqTMo8ZzI8/exec";
 var GOOGLE_CLIENT_ID="873194848568-i3ee7nonqb2j1j4r97pqheddf2f62vbi.apps.googleusercontent.com";
 var GOOGLE_ID_TOKEN="";
-var GOOGLE_TOKEN_STORAGE_KEY="alfaprom_google_id_token";
 var C=[];
 var API_LOADED=false;
 var API_ERROR="";
@@ -32,6 +31,7 @@ function build(items){
     var questions=list(category.questions);
     var features=val(category.features);
 
+    // Название категории всегда является поисковым термином.
     if(keywords.map(norm).indexOf(norm(cat))<0){
       keywords.unshift(cat);
     }
@@ -77,34 +77,7 @@ function build(items){
     C.push(map[k]);
   });
 }
-
 function message(t,x){document.getElementById("results").innerHTML='<div class="card"><div class="title">'+esc(t)+'</div>'+esc(x)+'</div>';}
-
-function saveGoogleSession(){
-  try{
-    if(GOOGLE_ID_TOKEN)sessionStorage.setItem(GOOGLE_TOKEN_STORAGE_KEY,GOOGLE_ID_TOKEN);
-  }catch(e){}
-}
-
-function clearGoogleSession(){
-  try{sessionStorage.removeItem(GOOGLE_TOKEN_STORAGE_KEY);}catch(e){}
-  GOOGLE_ID_TOKEN="";
-}
-
-function restoreGoogleSession(){
-  try{
-    var saved=sessionStorage.getItem(GOOGLE_TOKEN_STORAGE_KEY);
-    if(!saved)return false;
-    GOOGLE_ID_TOKEN=saved;
-    var auth=document.getElementById("authText");
-    if(auth)auth.textContent="Восстанавливаю вход в базу...";
-    loadApi();
-    return true;
-  }catch(e){
-    clearGoogleSession();
-    return false;
-  }
-}
 
 function handleGoogleCredential(response){
   GOOGLE_ID_TOKEN=val(response&&response.credential);
@@ -112,7 +85,6 @@ function handleGoogleCredential(response){
     message("Ошибка входа","Google не вернул токен авторизации.");
     return;
   }
-  saveGoogleSession();
   var auth=document.getElementById("authText");
   if(auth)auth.textContent="Google-аккаунт подтверждён. Проверяю доступ к базе...";
   loadApi();
@@ -133,7 +105,6 @@ function initGoogleLogin(){
     document.getElementById("googleButton"),
     {theme:"outline",size:"large",text:"signin_with",shape:"rectangular",logo_alignment:"left"}
   );
-  restoreGoogleSession();
 }
 
 function loadApi(){
@@ -150,9 +121,6 @@ function loadApi(){
   }).then(function(d){
     if(!d||d.success!==true||!Array.isArray(d.items)){
       if(d&&d.accessDenied){
-        if((d.error||"").indexOf("токен")>=0 || (d.error||"").indexOf("токена")>=0 || (d.error||"").indexOf("Google не подтвердил")>=0){
-          clearGoogleSession();
-        }
         throw Error(d.error||"Доступ запрещён");
       }
       throw Error((d&&d.error)||"API вернул неожиданный формат");
@@ -185,12 +153,14 @@ function score(q,c){
  var best=0;
  var hits=[];
 
+ // Сначала точное/частичное совпадение с названием категории.
  var category=norm(c.name);
  if(q===category || category.indexOf(q)>=0 || q.indexOf(category)>=0){
    best=98;
    hits.push(c.name);
  }
 
+ // Затем ключевики ЭТОЙ категории.
  (c.kw||[]).forEach(function(term){
    var t=norm(term);
    if(!t)return;
@@ -219,6 +189,7 @@ function score(q,c){
    }
  });
 
+ // Базовые технологические словоформы.
  var n=category;
  if(q.indexOf("автоклав")>=0 && n.indexOf("автоклав")>=0)best=Math.max(best,98);
  if(q.indexOf("вакуум")>=0 && n.indexOf("вакуум")>=0)best=Math.max(best,98);
@@ -274,8 +245,8 @@ function showExternalSearch(){
  '<div class="small">Можно поискать подходящее оборудование через Алису AI или ChatGPT. Ниже — готовый запрос, его можно проверить и отредактировать:</div>'+
  '<textarea id="externalPrompt" class="external-prompt">'+esc(prompt)+'</textarea>'+
  '<div class="actions">'+
- '<button class="primary" onclick="externalSearch(\\'alice\\')">🔎 Поиск с Алисой AI</button>'+
- '<button class="secondary" onclick="externalSearch(\\'chatgpt\\')">🤖 Спросить ChatGPT</button>'+
+ '<button class="primary" onclick="externalSearch(\'alice\')">🔎 Поиск с Алисой AI</button>'+
+ '<button class="secondary" onclick="externalSearch(\'chatgpt\')">🤖 Спросить ChatGPT</button>'+
  '</div></div>';
 }
 function externalSearch(type){
@@ -288,6 +259,8 @@ function externalSearch(type){
  if(type==="alice"){
    window.open("https://yandex.ru/search/?text="+encodeURIComponent(prompt),"_blank","noopener,noreferrer");
  }else{
+   // Передаём запрос непосредственно через параметр q веб-версии ChatGPT.
+   // Если ОС откроет нативное приложение, запрос также остаётся в буфере обмена.
    window.open("https://chatgpt.com/?q="+encodeURIComponent(prompt),"_blank","noopener,noreferrer");
  }
 }

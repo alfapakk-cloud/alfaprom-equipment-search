@@ -159,10 +159,7 @@ function search(){
  if(!q){document.getElementById("results").innerHTML="";return;}
  if(!API_LOADED){message("База ещё не готова",API_ERROR||"Подождите окончания загрузки данных.");return;}
  var a=C.map(function(c){return {c:c,m:score(q,c)};}).filter(function(x){return x.m.score>=50;}).sort(function(a,b){return b.m.score-a.m.score;});
- if(!a.length){
- document.getElementById("results").innerHTML='<div class="card external"><h3>В базе АЛЬФАПРОМ подходящее оборудование не найдено</h3><div class="small">Можно продолжить поиск через внешние ИИ-сервисы:</div><div class="actions"><button class="primary" onclick="externalSearch(\'alice\')">🔎 Поиск с Алисой AI</button><button class="secondary" onclick="externalSearch(\'chatgpt\')">🤖 Спросить ChatGPT</button></div></div>';
- return;
-}
+ if(!a.length){showExternalSearch();return;}
  render(a[0].c,q,a[0].m);
 }
 
@@ -194,23 +191,32 @@ function showExternalSearch(){
  var q=val(document.getElementById("search").value);
  if(!q)return;
  var prompt=makeExternalPrompt(q);
- var h='<div class="card external">'+
-   '<div class="title">Поиск оборудования через внешний ИИ</div>'+
-   '<div class="small">Проверьте и при необходимости отредактируйте запрос перед переходом:</div>'+
-   '<textarea id="externalPrompt" class="external-prompt">'+esc(prompt)+'</textarea>'+
-   '<div class="actions">'+
-     '<button class="primary" onclick="externalSearch(\'alice\')">🔎 Поиск с Алисой AI</button>'+
-     '<button class="secondary" onclick="externalSearch(\'chatgpt\')">🤖 Спросить ChatGPT</button>'+
-   '</div></div>';
- document.getElementById("results").innerHTML=h;
+ document.getElementById("results").innerHTML=
+ '<div class="card external">'+
+ '<div class="title">Поиск оборудования через внешний ИИ</div>'+
+ '<div class="small">Готовый запрос — его можно проверить и отредактировать:</div>'+
+ '<textarea id="externalPrompt" class="external-prompt">'+esc(prompt)+'</textarea>'+
+ '<div class="actions">'+
+ '<button class="primary" onclick="externalSearch(\'alice\')">🔎 Поиск с Алисой AI</button>'+
+ '<button class="secondary" onclick="externalSearch(\'chatgpt\')">🤖 Спросить ChatGPT</button>'+
+ '</div></div>';
 }
 function externalSearch(type){
- var prompt=val(document.getElementById("externalPrompt") && document.getElementById("externalPrompt").value);
+ var el=document.getElementById("externalPrompt");
+ var prompt=el ? val(el.value) : "";
  if(!prompt)return;
+
+ // Для обоих сервисов сначала копируем отредактированный запрос.
+ // Это позволяет вставить его даже если ОС перехватит ссылку и откроет нативное приложение.
+ try{navigator.clipboard.writeText(prompt);}catch(e){}
+
  if(type==="alice"){
+   // Веб-страница Яндекса с запросом в URL.
    window.open("https://yandex.ru/search/?text="+encodeURIComponent(prompt),"_blank","noopener,noreferrer");
  }else{
-   window.open("https://chatgpt.com/?q="+encodeURIComponent(prompt),"_blank","noopener,noreferrer");
+   // Открываем именно HTTPS-адрес ChatGPT, без custom app scheme.
+   // После открытия запрос уже находится в буфере обмена.
+   window.open("https://chatgpt.com/","_blank","noopener,noreferrer");
  }
 }
 function render(c,q,m){

@@ -185,7 +185,7 @@ function renderQuestions(items){
  return '<div class="questions-grid">'+renderQuestionList("Универсальные вопросы",g.universal)+renderQuestionList("Специфичные вопросы по подбору",g.specific)+'</div>';
 }
 function makeExternalPrompt(q){
- return "Я подбираю оборудование для клиента в России. В базе АЛЬФАПРОМ подходящего оборудования не найдено. Помоги найти подходящее оборудование: "+q+". Найди реальные модели, производителей или крупных импортеров в РФ, у кого можно купить это оборудование. Укажи ключевые технические характеристики, производительность, ограничения по применению и ссылки на источники. Не выдумывай модели и характеристики.";
+ return "Я подбираю оборудование для клиента в России. Найди подходящее оборудование для задачи: "+q+". Найди реальные модели, производителей или крупных импортеров в РФ, у кого можно купить это оборудование. Укажи ключевые технические характеристики, производительность, ограничения по применению и ссылки на источники. Не выдумывай модели и характеристики.";
 }
 function showExternalSearch(){
  var q=val(document.getElementById("search").value);
@@ -193,8 +193,8 @@ function showExternalSearch(){
  var prompt=makeExternalPrompt(q);
  document.getElementById("results").innerHTML=
  '<div class="card external">'+
- '<div class="title">Поиск оборудования через внешний ИИ</div>'+
- '<div class="small">Готовый запрос — его можно проверить и отредактировать:</div>'+
+ '<h3>В базе АЛЬФАПРОМ подходящее оборудование не найдено</h3>'+
+ '<div class="small">Можно поискать подходящее оборудование через Алису AI или ChatGPT. Ниже — готовый запрос, его можно проверить и отредактировать:</div>'+
  '<textarea id="externalPrompt" class="external-prompt">'+esc(prompt)+'</textarea>'+
  '<div class="actions">'+
  '<button class="primary" onclick="externalSearch(\'alice\')">🔎 Поиск с Алисой AI</button>'+
@@ -206,19 +206,17 @@ function externalSearch(type){
  var prompt=el ? val(el.value) : "";
  if(!prompt)return;
 
- // Для обоих сервисов сначала копируем отредактированный запрос.
- // Это позволяет вставить его даже если ОС перехватит ссылку и откроет нативное приложение.
  try{navigator.clipboard.writeText(prompt);}catch(e){}
 
  if(type==="alice"){
-   // Веб-страница Яндекса с запросом в URL.
    window.open("https://yandex.ru/search/?text="+encodeURIComponent(prompt),"_blank","noopener,noreferrer");
  }else{
-   // Открываем именно HTTPS-адрес ChatGPT, без custom app scheme.
-   // После открытия запрос уже находится в буфере обмена.
-   window.open("https://chatgpt.com/","_blank","noopener,noreferrer");
+   // Передаём запрос непосредственно через параметр q веб-версии ChatGPT.
+   // Если ОС откроет нативное приложение, запрос также остаётся в буфере обмена.
+   window.open("https://chatgpt.com/?q="+encodeURIComponent(prompt),"_blank","noopener,noreferrer");
  }
 }
+
 function render(c,q,m){
  var h='<div class="card"><div class="title">Найдено</div><h2>'+esc(c.name)+'</h2><span class="pill">Совпадение '+m.score+'%</span><div class="why">Совпало: '+esc(m.hits.join(", "))+'</div></div>';
  h+='<div class="card"><div class="title">Что уточнить у клиента</div>'+renderQuestions(c.q)+'</div>';

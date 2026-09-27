@@ -266,7 +266,7 @@ function externalSearch(type){
 }
 
 var SUPPLIER_MODAL_DATA=[];
-function safeUrl(x){x=val(x);return /^https?:\\/\\//i.test(x)?x:"";}
+function safeUrl(x){x=val(x);return /^https?:\/\//i.test(x)?x:"";}
 function linkHtml(label,url){url=safeUrl(url);return url?'<a class="supplier-link" href="'+esc(url)+'" target="_blank" rel="noopener noreferrer">'+esc(label)+'</a>':"";}
 function fieldRow(label,value){value=val(value);return value?'<div class="detail-row"><div class="detail-label">'+esc(label)+'</div><div class="detail-value">'+esc(value)+'</div></div>':"";}
 function supplierCard(s,index){

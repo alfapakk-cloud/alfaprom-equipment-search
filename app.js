@@ -187,20 +187,30 @@ function renderQuestions(items){
  var g=questionGroups(items);
  return '<div class="questions-grid">'+renderQuestionList("Универсальные вопросы",g.universal)+renderQuestionList("Специфичные вопросы по подбору",g.specific)+'</div>';
 }
-function externalSearch(type){
+function makeExternalPrompt(q){
+ return "Я подбираю оборудование для клиента в России. В базе АЛЬФАПРОМ подходящего оборудования не найдено. Помоги найти подходящее оборудование: "+q+". Найди реальные модели, производителей или крупных импортеров в РФ, у кого можно купить это оборудование. Укажи ключевые технические характеристики, производительность, ограничения по применению и ссылки на источники. Не выдумывай модели и характеристики.";
+}
+function showExternalSearch(){
  var q=val(document.getElementById("search").value);
  if(!q)return;
-
- var prompt="Я подбираю оборудование для клиента в России. В базе АЛЬФАПРОМ подходящего оборудования не найдено. Помоги найти подходящее оборудование: "+q+". Найди реальные модели, производителей или крупных поставщиков. Укажи ключевые технические характеристики, производительность, ограничения по применению и ссылки на источники. Не выдумывай модели и характеристики.";
-
+ var prompt=makeExternalPrompt(q);
+ var h='<div class="card external">'+
+   '<div class="title">Поиск оборудования через внешний ИИ</div>'+
+   '<div class="small">Проверьте и при необходимости отредактируйте запрос перед переходом:</div>'+
+   '<textarea id="externalPrompt" class="external-prompt">'+esc(prompt)+'</textarea>'+
+   '<div class="actions">'+
+     '<button class="primary" onclick="externalSearch(\'alice\')">🔎 Поиск с Алисой AI</button>'+
+     '<button class="secondary" onclick="externalSearch(\'chatgpt\')">🤖 Спросить ChatGPT</button>'+
+   '</div></div>';
+ document.getElementById("results").innerHTML=h;
+}
+function externalSearch(type){
+ var prompt=val(document.getElementById("externalPrompt") && document.getElementById("externalPrompt").value);
+ if(!prompt)return;
  if(type==="alice"){
-   // Открываем именно веб-страницу Яндекса, а не приложение.
-   // Запрос уже находится в URL, поэтому Алиса/Поиск получает его сразу.
-   var url="https://yandex.ru/search/?text="+encodeURIComponent(prompt);
-   window.open(url,"_blank","noopener,noreferrer");
+   window.open("https://yandex.ru/search/?text="+encodeURIComponent(prompt),"_blank","noopener,noreferrer");
  }else{
-   var url="https://chatgpt.com/?q="+encodeURIComponent(prompt);
-   window.open(url,"_blank","noopener,noreferrer");
+   window.open("https://chatgpt.com/?q="+encodeURIComponent(prompt),"_blank","noopener,noreferrer");
  }
 }
 function render(c,q,m){

@@ -79,11 +79,34 @@ function message(t,x){document.getElementById("results").innerHTML='<div class="
 
 function loadApi(){
  message("Подключение","Загружаю актуальную базу поставщиков АЛЬФАПРОМ...");
- fetch(API_URL+"?t="+Date.now(),{cache:"no-store",credentials:"include"}).then(function(r){
+
+ // Если сервис открыт внутри Google Apps Script,
+ // используем google.script.run — без CORS и без передачи Google-сессии через fetch.
+ if(typeof google !== "undefined" && google.script && google.script.run){
+   google.script.run
+     .withSuccessHandler(function(d){
+       if(!d||d.success!==true||!Array.isArray(d.items)){
+         throw Error((d&&d.error)||"API вернул неожиданный формат");
+       }
+       build(d.items);
+       if(!C.length)throw Error("API не вернул категории");
+       API_LOADED=true;
+       message("Готово","База поставщиков загружена: "+d.items.length+" записей.");
+     })
+     .withFailureHandler(function(e){
+       API_ERROR=(e&&e.message)||"Ошибка связи с Apps Script";
+       message("Ошибка загрузки",API_ERROR);
+     })
+     .getSecureDatabase();
+   return;
+ }
+
+ // Резервный режим для прямого API.
+ fetch(API_URL+"?t="+Date.now(),{cache:"no-store"}).then(function(r){
    if(!r.ok)throw Error("HTTP "+r.status);
    return r.json();
  }).then(function(d){
-   if(!d||d.success!==true||!Array.isArray(d.items))throw Error("API вернул неожиданный формат");
+   if(!d||d.success!==true||!Array.isArray(d.items))throw Error((d&&d.error)||"API вернул неожиданный формат");
    build(d.items);
    if(!C.length)throw Error("API не вернул категории");
    API_LOADED=true;

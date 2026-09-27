@@ -79,7 +79,7 @@ function message(t,x){document.getElementById("results").innerHTML='<div class="
 
 function loadApi(){
  message("Подключение","Загружаю актуальную базу поставщиков АЛЬФАПРОМ...");
- fetch(API_URL+"?t="+Date.now(),{cache:"no-store"}).then(function(r){
+ fetch(API_URL+"?t="+Date.now(),{cache:"no-store",credentials:"include"}).then(function(r){
    if(!r.ok)throw Error("HTTP "+r.status);
    return r.json();
  }).then(function(d){

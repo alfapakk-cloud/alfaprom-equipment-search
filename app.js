@@ -303,19 +303,6 @@ function score(q,c){
   };
 }
 
- // Базовые технологические словоформы.
- var n=category;
- if(q.indexOf("автоклав")>=0 && n.indexOf("автоклав")>=0)best=Math.max(best,98);
- if(q.indexOf("вакуум")>=0 && n.indexOf("вакуум")>=0)best=Math.max(best,98);
- if((q.indexOf("упаковщик")>=0||q.indexOf("вакуум")>=0) && n.indexOf("вакуум")>=0)best=Math.max(best,95);
- if(q.indexOf("котлет")>=0 && n.indexOf("котлет")>=0)best=Math.max(best,98);
- if(q.indexOf("запай")>=0 && n.indexOf("запай")>=0)best=Math.max(best,98);
- if(q.indexOf("термоформ")>=0 && n.indexOf("термоформ")>=0)best=Math.max(best,98);
- if(q.indexOf("шприц")>=0 && n.indexOf("шприц")>=0)best=Math.max(best,98);
-
- return {score:Math.min(best,99),hits:Array.from(new Set(hits)).slice(0,5)};
-}
-
 /*
  * Возвращает группу взаимозаменяемых категорий.
  * Пустая строка означает: категория не относится

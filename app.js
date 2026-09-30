@@ -145,162 +145,120 @@ function stem(x){
   return x.slice(0,Math.max(4,x.length-2));
 }
 
-function score(q,c){
-  q=norm(q);
+function search(){
+  var q=document.getElementById("search").value.trim();
 
   if(!q){
-    return {score:0,hits:[]};
+    document.getElementById("results").innerHTML="";
+    return;
   }
 
-  var words=q.split(" ").filter(function(word){
-    return word.length>=3;
-  });
+  if(!API_LOADED){
+    message(
+      "База ещё не готова",
+      API_ERROR||"Подождите окончания загрузки данных."
+    );
+    return;
+  }
 
-  var best=0;
-  var hits=[];
-
-  var category=norm(c.name);
+  var normalizedQuery=norm(q);
+  var group="";
+  var mode=queryMode(q);
 
   /*
-   * Точное совпадение с названием категории.
+   * Определяем группу прямо по запросу пользователя,
+   * ещё до общего ранжирования результатов.
    */
-  if(q===category){
+  if(
+    normalizedQuery.indexOf("запайщик лотков")>=0 ||
+    normalizedQuery.indexOf("запайка лотков")>=0 ||
+    normalizedQuery.indexOf("лоткозапайщик")>=0 ||
+    normalizedQuery.indexOf("трейсилер")>=0 ||
+    normalizedQuery.indexOf("tray sealer")>=0
+  ){
+    group="tray-sealer";
+  }
+
+  if(
+    normalizedQuery.indexOf("вакуумн")>=0 ||
+    normalizedQuery.indexOf("вакууматор")>=0
+  ){
+    group="vacuum-packer";
+  }
+
+  /*
+   * Специальная логика для подкатегорий.
+   */
+  if(group){
+    /*
+     * Берём все категории нужной группы из полной базы C:
+     * они не должны исчезать из-за score-порога.
+     */
+    var groupItems=C.filter(function(category){
+      return categoryGroup(category.name)===group;
+    }).map(function(category){
+      return {
+        c:category,
+        m:score(q,category)
+      };
+    });
+
+    /*
+     * Если пользователь указал маркер:
+     * ручной / небольшой / полуавтоматический /
+     * промышленный / автоматический / конвейерный,
+     * выводим одну соответствующую подкатегорию.
+     */
+    if(mode){
+      var modeItems=groupItems.filter(function(item){
+        return categoryMode(item.c.name)===mode;
+      });
+
+      if(modeItems.length){
+        modeItems.sort(function(a,b){
+          return b.m.score-a.m.score;
+        });
+
+        render(modeItems[0].c,q,modeItems[0].m);
+        return;
+      }
+    }
+
+    /*
+     * Маркер не указан.
+     * Выводим все подкатегории группы:
+     * три для запайщиков и две для вакуумных упаковщиков.
+     */
+    if(groupItems.length>=2){
+      groupItems.sort(function(a,b){
+        return b.m.score-a.m.score;
+      });
+
+      renderCategoryChoices(groupItems,q);
+      return;
+    }
+  }
+
+  /*
+   * Обычный поиск для всех остальных категорий.
+   */
+  var found=C.map(function(category){
     return {
-      score:99,
-      hits:[c.name]
+      c:category,
+      m:score(q,category)
     };
-  }
-
-  /*
-   * Запрос целиком входит в название категории.
-   */
-  if(category.indexOf(q)>=0){
-    best=97;
-    hits.push(c.name);
-  }
-
-  /*
-   * Приоритет — точные ключевики этой категории.
-   */
-  (c.kw||[]).forEach(function(term){
-    var t=norm(term);
-
-    if(!t){
-      return;
-    }
-
-    /*
-     * Например:
-     * запрос: «овощерезка»
-     * ключевик: «овощерезка»
-     */
-    if(q===t){
-      best=Math.max(best,99);
-      hits.push(term);
-      return;
-    }
-
-    /*
-     * Например:
-     * запрос: «слайсер для рыбы»
-     * ключевик: «промышленный слайсер для рыбы»
-     */
-    if(t.indexOf(q)>=0){
-      best=Math.max(best,96);
-      hits.push(term);
-      return;
-    }
-
-    /*
-     * Неточный поиск нужен только для фраз.
-     * Одно случайно совпавшее слово не должно
-     * приводить к выдаче другого оборудования.
-     */
-    if(words.length<2){
-      return;
-    }
-
-    var termWords=t.split(" ");
-
-    var matched=words.filter(function(word){
-      return termWords.some(function(termWord){
-
-        if(word===termWord){
-          return true;
-        }
-
-        /*
-         * Словоформы:
-         * слайсер / слайсеры
-         * промышленный / промышленные
-         */
-        if(word.length<=5 || termWord.length<=5){
-          return false;
-        }
-
-        var wordBase=word.slice(0,-2);
-        var termBase=termWord.slice(0,-2);
-
-        return wordBase===termBase;
-      });
-    }).length;
-
-    /*
-     * Для запроса из нескольких слов требуется
-     * минимум два совпадения.
-     *
-     * Поэтому «слайсер для рыбы» не попадёт
-     * в «шкуросъёмные машины для рыбы»:
-     * совпадает только «рыбы».
-     */
-    if(matched>=2){
-      var fuzzyScore=65+
-        Math.round((matched/words.length)*25);
-
-      if(fuzzyScore>best){
-        best=fuzzyScore;
-        hits.push(term);
-      }
-    }
+  }).filter(function(item){
+    return item.m.score>=70;
+  }).sort(function(a,b){
+    return b.m.score-a.m.score;
   });
 
-  /*
-   * Менее сильное совпадение с названием категории.
-   * Для фразы нужны минимум два совпавших слова.
-   */
-  if(words.length>=2){
-    var categoryWords=category.split(" ");
-
-    var categoryMatched=words.filter(function(word){
-      return categoryWords.some(function(categoryWord){
-
-        if(word===categoryWord){
-          return true;
-        }
-
-        if(word.length<=5 || categoryWord.length<=5){
-          return false;
-        }
-
-        return word.slice(0,-2)===categoryWord.slice(0,-2);
-      });
-    }).length;
-
-    if(categoryMatched>=2){
-      var categoryScore=70+
-        Math.round((categoryMatched/words.length)*20);
-
-      if(categoryScore>best){
-        best=categoryScore;
-        hits.push(c.name);
-      }
-    }
+  if(!found.length){
+    showExternalSearch();
+    return;
   }
 
-  return {
-    score:Math.min(best,99),
-    hits:Array.from(new Set(hits)).slice(0,5)
-  };
+  render(found[0].c,q,found[0].m);
 }
 
 /*

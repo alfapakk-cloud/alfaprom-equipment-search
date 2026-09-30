@@ -421,12 +421,23 @@ function search(){
 function categoryGroup(categoryName){
   var name=norm(categoryName);
 
-  if(name.indexOf("запайщик лотков")>=0){
+  /*
+   * Запайщики лотков:
+   * учитываем и единственное число в запросе
+   * («запайщик лотков»), и множественное число
+   * в названии категории («запайщики лотков»).
+   */
+  if(
+    name.indexOf("запайщик")>=0 &&
+    name.indexOf("лотков")>=0
+  ){
     return "tray-sealer";
   }
 
-  if(name.indexOf("вакуумн")>=0 &&
-     name.indexOf("упаковщик")>=0){
+  if(
+    name.indexOf("вакуумн")>=0 &&
+    name.indexOf("упаковщик")>=0
+  ){
     return "vacuum-packer";
   }
 

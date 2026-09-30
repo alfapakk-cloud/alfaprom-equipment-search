@@ -323,6 +323,8 @@ function search(){
    */
   if(
     normalizedQuery.indexOf("запайщик лотков")>=0 ||
+    normalizedQuery.indexOf("запайщик")>=0 ||
+    normalizedQuery.indexOf("запайщики лотков")>=0 ||
     normalizedQuery.indexOf("запайка лотков")>=0 ||
     normalizedQuery.indexOf("лоткозапайщик")>=0 ||
     normalizedQuery.indexOf("трейсилер")>=0 ||

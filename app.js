@@ -145,6 +145,158 @@ function stem(x){
   return x.slice(0,Math.max(4,x.length-2));
 }
 
+function score(q,c){
+  q=norm(q);
+
+  if(!q){
+    return {
+      score:0,
+      hits:[]
+    };
+  }
+
+  var words=q.split(" ").filter(function(word){
+    return word.length>=3;
+  });
+
+  var best=0;
+  var hits=[];
+  var category=norm(c.name);
+
+  /*
+   * Точное совпадение с названием категории.
+   */
+  if(q===category){
+    return {
+      score:99,
+      hits:[c.name]
+    };
+  }
+
+  /*
+   * Запрос полностью присутствует в названии категории.
+   */
+  if(category.indexOf(q)>=0){
+    best=97;
+    hits.push(c.name);
+  }
+
+  /*
+   * Ищем совпадение в ключевиках категории.
+   */
+  (c.kw||[]).forEach(function(term){
+    var t=norm(term);
+
+    if(!t){
+      return;
+    }
+
+    /*
+     * Точный ключевик:
+     * «овощерезка» = «овощерезка».
+     */
+    if(q===t){
+      best=Math.max(best,99);
+      hits.push(term);
+      return;
+    }
+
+    /*
+     * Запрос как цельная фраза содержится в ключевике:
+     * «слайсер для рыбы» находится в
+     * «промышленный слайсер для рыбы».
+     */
+    if(t.indexOf(q)>=0){
+      best=Math.max(best,96);
+      hits.push(term);
+      return;
+    }
+
+    /*
+     * Для однословного запроса не используем
+     * нечёткое сопоставление: оно даёт ложные результаты.
+     */
+    if(words.length<2){
+      return;
+    }
+
+    var termWords=t.split(" ");
+
+    var matched=words.filter(function(word){
+      return termWords.some(function(termWord){
+
+        if(word===termWord){
+          return true;
+        }
+
+        /*
+         * Учитываем безопасные словоформы:
+         * «слайсер» / «слайсеры»;
+         * «промышленный» / «промышленные».
+         */
+        if(word.length<=5 || termWord.length<=5){
+          return false;
+        }
+
+        return word.slice(0,-2)===termWord.slice(0,-2);
+      });
+    }).length;
+
+    /*
+     * Для фразы нужно совпадение хотя бы двух слов.
+     * «слайсер для рыбы» не попадёт в оборудование,
+     * где есть только слово «рыба».
+     */
+    if(matched>=2){
+      var fuzzyScore=65+
+        Math.round((matched/words.length)*25);
+
+      if(fuzzyScore>best){
+        best=fuzzyScore;
+        hits.push(term);
+      }
+    }
+  });
+
+  /*
+   * Отдельно учитываем совпадение с названием категории.
+   */
+  if(words.length>=2){
+    var categoryWords=category.split(" ");
+
+    var categoryMatched=words.filter(function(word){
+      return categoryWords.some(function(categoryWord){
+
+        if(word===categoryWord){
+          return true;
+        }
+
+        if(word.length<=5 || categoryWord.length<=5){
+          return false;
+        }
+
+        return word.slice(0,-2)===categoryWord.slice(0,-2);
+      });
+    }).length;
+
+    if(categoryMatched>=2){
+      var categoryScore=70+
+        Math.round((categoryMatched/words.length)*20);
+
+      if(categoryScore>best){
+        best=categoryScore;
+        hits.push(c.name);
+      }
+    }
+  }
+
+  return {
+    score:Math.min(best,99),
+    hits:Array.from(new Set(hits)).slice(0,5)
+  };
+}
+
+
 function search(){
   var q=document.getElementById("search").value.trim();
 
@@ -382,142 +534,52 @@ function queryMode(query){
 }
 
 
-function search(){
-  var q=document.getElementById("search").value.trim();
-
-  if(!q){
-    document.getElementById("results").innerHTML="";
-    return;
-  }
-
-  if(!API_LOADED){
-    message(
-      "База ещё не готова",
-      API_ERROR||"Подождите окончания загрузки данных."
-    );
-    return;
-  }
-
-  var found=C.map(function(category){
-    return {
-      c:category,
-      m:score(q,category)
-    };
-  }).filter(function(item){
-    return item.m.score>=70;
-  }).sort(function(a,b){
-    return b.m.score-a.m.score;
-  });
-
-  if(!found.length){
-    showExternalSearch();
-    return;
-  }
-
-  /*
-   * Проверяем, относится ли лучший результат
-   * к одной из групп: запайщики лотков
-   * или вакуумные упаковщики.
-   */
-  var best=found[0];
-  var group=categoryGroup(best.c.name);
-  var mode=queryMode(q);
-
-  if(group){
-    /*
-     * Берём только релевантные категории
-     * внутри одной группы.
-     */
-    var groupItems=found.filter(function(item){
-      return categoryGroup(item.c.name)===group;
-    });
-
-    /*
-     * Пользователь явно написал признак:
-     * ручной / небольшой / полуавтоматический /
-     * промышленный / автоматический / конвейерный.
-     *
-     * Выводим одну наиболее подходящую категорию.
-     */
-    if(mode){
-      var exactModeItems=groupItems.filter(function(item){
-        return categoryMode(item.c.name)===mode;
-      });
-
-      if(exactModeItems.length){
-        render(exactModeItems[0].c,q,exactModeItems[0].m);
-        return;
-      }
-    }
-
-    /*
-     * Если явного маркера нет:
-     * показываем две или три подходящие подкатегории,
-     * чтобы пользователь выбрал сам.
-     */
-    if(groupItems.length>=2){
-      renderCategoryChoices(groupItems.slice(0,3),q);
-      return;
-    }
-  }
-
-  /*
-   * Обычный поиск для всех остальных категорий.
-   */
-  render(best.c,q,best.m);
-}
 
 function renderCategoryChoices(items,q){
+  var root=document.getElementById("results");
+
+  if(!root){
+    return;
+  }
+
   var h='<div class="card">';
   h+='<div class="title">Уточните вариант оборудования</div>';
   h+='<h2>Найдено несколько подходящих категорий</h2>';
   h+='<div class="small">';
   h+='Выберите вариант по объёму производства и уровню автоматизации.';
   h+='</div>';
-  h+='<div class="actions">';
+  h+='<div class="actions" id="categoryChoiceActions"></div>';
+  h+='</div>';
 
-  items.forEach(function(item){
-    var index=C.indexOf(item.c);
+  root.innerHTML=h;
 
-    h+='<button class="secondary" onclick="openCategoryByIndex('+
-      index+
-      ','+
-      encodeURIComponent(q)+
-      ')">'+
-      esc(item.c.name)+
-      '</button>';
-  });
+  var actions=document.getElementById("categoryChoiceActions");
 
-  h+='</div></div>';
-
-  document.getElementById("results").innerHTML=h;
-}
-
-function openCategoryByIndex(index,encodedQuery){
-  var category=C[index];
-
-  if(!category){
+  if(!actions){
     return;
   }
 
-  var q="";
+  items.forEach(function(item){
+    var button=document.createElement("button");
 
-  try{
-    q=decodeURIComponent(encodedQuery||"");
-  }catch(e){
-    q="";
-  }
+    button.type="button";
+    button.className="secondary";
+    button.textContent=item.c.name;
 
-  render(
-    category,
-    q,
-    {
-      score:99,
-      hits:[category.name]
-    }
-  );
+    button.addEventListener("click",function(){
+      render(
+        item.c,
+        q,
+        {
+          score:99,
+          hits:[item.c.name]
+        }
+      );
+    });
+
+    actions.appendChild(button);
+  });
 }
-
 
 function questionGroups(items){
  var universal=[],specific=[],mode="specific";

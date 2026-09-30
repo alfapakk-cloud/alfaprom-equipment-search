@@ -16,6 +16,154 @@ function supplier(s){
  return {name:val(s.name)||"Без названия",brand:val(s.brand),country:val(s.country),legalName:val(s.legalName),site:val(s.site),status:val(s.status),discount:val(s.discount),groups:val(s.groups),workFeatures:val(s.workFeatures),contact:val(s.mainContact),advantages:val(s.advantages),note:val(s.comments),phone:val(s.phone),email:val(s.email),messenger:val(s.messenger),priority:val(s.priority).toUpperCase(),lkLink:val(s.personalCabinet),login:val(s.login),additionalInfo:val(s.additionalInfo),department:val(s.department),additionalContacts:val(s.additionalContacts),serviceCenter:val(s.serviceCenter),showroom:val(s.showroom),warehouse:val(s.warehouse),pickup:val(s.pickup),deliveryToTK:val(s.deliveryToTK),deliveryTerms:val(s.deliveryTerms),shipmentRequest:val(s.shipmentRequest),accounting:val(s.accounting),categoryId:val(s.categoryId)};
 }
 
+var SUPPLIER_INDEX=[];
+
+function supplierSearchKey(x){
+  x=norm(x);
+
+  /*
+   * Приводим распространённые варианты написания
+   * к одной форме до транслитерации.
+   */
+  x=x
+    .replace(/э/g,"е")
+    .replace(/ъ/g,"")
+    .replace(/ь/g,"")
+    .replace(/й/g,"и");
+
+  return transliterate(x).replace(/[^a-z0-9]/g,"");
+}
+
+function transliterate(x){
+  var map={
+    "а":"a","б":"b","в":"v","г":"g","д":"d","е":"e",
+    "ж":"zh","з":"z","и":"i","к":"k","л":"l","м":"m",
+    "н":"n","о":"o","п":"p","р":"r","с":"s","т":"t",
+    "у":"u","ф":"f","х":"h","ц":"c","ч":"ch","ш":"sh",
+    "щ":"shch","ы":"y","ю":"yu","я":"ya"
+  };
+
+  return x.replace(/[а-я]/g,function(ch){
+    return map[ch]||ch;
+  });
+}
+
+function supplierDistance(a,b){
+  var prev=[];
+  var curr=[];
+  var i,j;
+
+  for(j=0;j<=b.length;j++)prev[j]=j;
+
+  for(i=1;i<=a.length;i++){
+    curr[0]=i;
+
+    for(j=1;j<=b.length;j++){
+      curr[j]=Math.min(
+        curr[j-1]+1,
+        prev[j]+1,
+        prev[j-1]+(a.charAt(i-1)===b.charAt(j-1)?0:1)
+      );
+    }
+
+    prev=curr.slice();
+  }
+
+  return prev[b.length];
+}
+
+function buildSupplierIndex(){
+  var map={};
+
+  C.forEach(function(category){
+    (category.rows||[]).forEach(function(row){
+      var s=row.supplier;
+
+      if(!s || !s.name || s.name==="Без названия"){
+        return;
+      }
+
+      var key=supplierSearchKey(s.name);
+
+      if(!key){
+        return;
+      }
+
+      /*
+       * Один поставщик может встречаться в десятках строк
+       * разных категорий. Храним его только один раз.
+       */
+      if(!map[key]){
+        map[key]={
+          key:key,
+          supplier:s
+        };
+      }
+    });
+  });
+
+  SUPPLIER_INDEX=Object.keys(map).map(function(key){
+    return map[key];
+  });
+}
+
+function findSupplier(query){
+  var normalized=norm(query);
+  var compact=supplierSearchKey(query);
+
+  if(!compact){
+    return null;
+  }
+
+  /*
+   * Сначала ищем точное совпадение или поставщика,
+   * который целиком входит в запрос.
+   */
+  for(var i=0;i<SUPPLIER_INDEX.length;i++){
+    var item=SUPPLIER_INDEX[i];
+
+    if(
+      compact===item.key ||
+      compact.indexOf(item.key)>=0
+    ){
+      return item;
+    }
+  }
+
+  /*
+   * Затем допускаем небольшую опечатку для однословного
+   * названия поставщика.
+   */
+  var words=normalized.split(/\s+/).filter(function(word){
+    return word.length>=4;
+  });
+
+  for(var j=0;j<SUPPLIER_INDEX.length;j++){
+    var candidate=SUPPLIER_INDEX[j];
+
+    if(candidate.key.length<5){
+      continue;
+    }
+
+    for(var k=0;k<words.length;k++){
+      var wordKey=supplierSearchKey(words[k]);
+      if(wordKey.length<4){
+        continue;
+      }
+
+      var distance=supplierDistance(wordKey,candidate.key);
+      var allowed=wordKey.length>=7 ? 2 : 1;
+
+      if(distance<=allowed){
+        return candidate;
+      }
+    }
+  }
+
+  return null;
+}
+
+
 function build(items){
   C=[];
   var map={};
@@ -76,6 +224,12 @@ function build(items){
     });
     C.push(map[k]);
   });
+
+  /*
+   * После сборки категорий автоматически строим
+   * единый индекс всех поставщиков из базы.
+   */
+  buildSupplierIndex();
 }
 function message(t,x){document.getElementById("results").innerHTML='<div class="card"><div class="title">'+esc(t)+'</div>'+esc(x)+'</div>';}
 
@@ -310,6 +464,19 @@ function search(){
       "База ещё не готова",
       API_ERROR||"Подождите окончания загрузки данных."
     );
+    return;
+  }
+
+  /*
+   * Сначала проверяем, не ищет ли пользователь поставщика.
+   * Индекс строится автоматически из названий поставщиков
+   * в загруженной базе, поэтому отдельный список поставщиков
+   * в коде или таблице не нужен.
+   */
+  var supplierMatch=findSupplier(q);
+
+  if(supplierMatch){
+    renderSupplierSearch(supplierMatch.supplier,q);
     return;
   }
 
@@ -666,6 +833,23 @@ function supplierCard(s,index){
  if(s.advantages)h+='<div class="supplier-key">🔥 <b>Дополнительные преимущества:</b> '+esc(s.advantages)+'</div>';
  h+='<button class="secondary details-btn" onclick="openSupplierModalByIndex('+index+')">Подробнее</button>';
  return h+'</div>';
+}
+
+function renderSupplierSearch(s,q){
+  var h='<div class="card">';
+  h+='<div class="title">Найден поставщик</div>';
+  h+='<h2>'+esc(s.name)+'</h2>';
+  h+='<div class="why">По запросу: '+esc(q)+'</div>';
+  h+='</div>';
+
+  h+='<div class="card"><div class="title">Поставщик</div><div class="suppliers">';
+
+  SUPPLIER_MODAL_DATA=[s];
+  h+=supplierCard(s,0);
+
+  h+='</div></div>';
+
+  document.getElementById("results").innerHTML=h;
 }
 function renderSupplierModal(s){
  var h='<div class="modal-overlay" id="supplierModal" onclick="if(event.target===this)closeSupplierModal()"><div class="supplier-modal">';

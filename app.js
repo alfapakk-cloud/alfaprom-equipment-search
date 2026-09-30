@@ -146,48 +146,162 @@ function stem(x){
 }
 
 function score(q,c){
- q=norm(q);
- if(!q)return {score:0,hits:[]};
+  q=norm(q);
 
- var words=q.split(" ").filter(function(w){return w.length>=3;});
- var best=0;
- var hits=[];
+  if(!q){
+    return {score:0,hits:[]};
+  }
 
- // Сначала точное/частичное совпадение с названием категории.
- var category=norm(c.name);
- if(q===category || category.indexOf(q)>=0 || q.indexOf(category)>=0){
-   best=98;
-   hits.push(c.name);
- }
+  var words=q.split(" ").filter(function(word){
+    return word.length>=3;
+  });
 
- // Затем ключевики ЭТОЙ категории.
- (c.kw||[]).forEach(function(term){
-   var t=norm(term);
-   if(!t)return;
+  var best=0;
+  var hits=[];
 
-   if(q===t || t.indexOf(q)>=0 || q.indexOf(t)>=0){
-     best=Math.max(best,90);
-     hits.push(term);
-     return;
-   }
+  var category=norm(c.name);
 
-   var tw=t.split(" ");
-   var matched=0;
+  /*
+   * Точное совпадение с названием категории.
+   */
+  if(q===category){
+    return {
+      score:99,
+      hits:[c.name]
+    };
+  }
 
-   words.forEach(function(w){
-     var stem=w.slice(0,Math.max(4,w.length-2));
-     if(tw.some(function(x){
-       var sx=x.slice(0,Math.max(4,x.length-2));
-       return sx===stem || sx.indexOf(stem)===0 || stem.indexOf(sx)===0;
-     })) matched++;
-   });
+  /*
+   * Запрос целиком входит в название категории.
+   */
+  if(category.indexOf(q)>=0){
+    best=97;
+    hits.push(c.name);
+  }
 
-   if(matched){
-     var p=45+Math.round((matched/Math.max(words.length,1))*45);
-     best=Math.max(best,p);
-     hits.push(term);
-   }
- });
+  /*
+   * Приоритет — точные ключевики этой категории.
+   */
+  (c.kw||[]).forEach(function(term){
+    var t=norm(term);
+
+    if(!t){
+      return;
+    }
+
+    /*
+     * Например:
+     * запрос: «овощерезка»
+     * ключевик: «овощерезка»
+     */
+    if(q===t){
+      best=Math.max(best,99);
+      hits.push(term);
+      return;
+    }
+
+    /*
+     * Например:
+     * запрос: «слайсер для рыбы»
+     * ключевик: «промышленный слайсер для рыбы»
+     */
+    if(t.indexOf(q)>=0){
+      best=Math.max(best,96);
+      hits.push(term);
+      return;
+    }
+
+    /*
+     * Неточный поиск нужен только для фраз.
+     * Одно случайно совпавшее слово не должно
+     * приводить к выдаче другого оборудования.
+     */
+    if(words.length<2){
+      return;
+    }
+
+    var termWords=t.split(" ");
+
+    var matched=words.filter(function(word){
+      return termWords.some(function(termWord){
+
+        if(word===termWord){
+          return true;
+        }
+
+        /*
+         * Словоформы:
+         * слайсер / слайсеры
+         * промышленный / промышленные
+         */
+        if(word.length<=5 || termWord.length<=5){
+          return false;
+        }
+
+        var wordBase=word.slice(0,-2);
+        var termBase=termWord.slice(0,-2);
+
+        return wordBase===termBase;
+      });
+    }).length;
+
+    /*
+     * Для запроса из нескольких слов требуется
+     * минимум два совпадения.
+     *
+     * Поэтому «слайсер для рыбы» не попадёт
+     * в «шкуросъёмные машины для рыбы»:
+     * совпадает только «рыбы».
+     */
+    if(matched>=2){
+      var fuzzyScore=65+
+        Math.round((matched/words.length)*25);
+
+      if(fuzzyScore>best){
+        best=fuzzyScore;
+        hits.push(term);
+      }
+    }
+  });
+
+  /*
+   * Менее сильное совпадение с названием категории.
+   * Для фразы нужны минимум два совпавших слова.
+   */
+  if(words.length>=2){
+    var categoryWords=category.split(" ");
+
+    var categoryMatched=words.filter(function(word){
+      return categoryWords.some(function(categoryWord){
+
+        if(word===categoryWord){
+          return true;
+        }
+
+        if(word.length<=5 || categoryWord.length<=5){
+          return false;
+        }
+
+        return word.slice(0,-2)===categoryWord.slice(0,-2);
+      });
+    }).length;
+
+    if(categoryMatched>=2){
+      var categoryScore=70+
+        Math.round((categoryMatched/words.length)*20);
+
+      if(categoryScore>best){
+        best=categoryScore;
+        hits.push(c.name);
+      }
+    }
+  }
+
+  return {
+    score:Math.min(best,99),
+    hits:Array.from(new Set(hits)).slice(0,5)
+  };
+}
 
  // Базовые технологические словоформы.
  var n=category;
@@ -202,14 +316,263 @@ function score(q,c){
  return {score:Math.min(best,99),hits:Array.from(new Set(hits)).slice(0,5)};
 }
 
-function search(){
- var q=document.getElementById("search").value.trim();
- if(!q){document.getElementById("results").innerHTML="";return;}
- if(!API_LOADED){message("База ещё не готова",API_ERROR||"Подождите окончания загрузки данных.");return;}
- var a=C.map(function(c){return {c:c,m:score(q,c)};}).filter(function(x){return x.m.score>=50;}).sort(function(a,b){return b.m.score-a.m.score;});
- if(!a.length){showExternalSearch();return;}
- render(a[0].c,q,a[0].m);
+/*
+ * Возвращает группу взаимозаменяемых категорий.
+ * Пустая строка означает: категория не относится
+ * к текущим группам с подкатегориями.
+ */
+function categoryGroup(categoryName){
+  var name=norm(categoryName);
+
+  if(name.indexOf("запайщик лотков")>=0){
+    return "tray-sealer";
+  }
+
+  if(name.indexOf("вакуумн")>=0 &&
+     name.indexOf("упаковщик")>=0){
+    return "vacuum-packer";
+  }
+
+  return "";
 }
+
+/*
+ * Определяет тип подкатегории по её названию.
+ */
+function categoryMode(categoryName){
+  var name=norm(categoryName);
+
+  if(name.indexOf("запайщик лотков")>=0){
+
+    if(
+      name.indexOf("полуавтомат")>=0 ||
+      name.indexOf("средн")>=0
+    ){
+      return "semi";
+    }
+
+    if(
+      name.indexOf("небольш")>=0 ||
+      name.indexOf("ручн")>=0 ||
+      name.indexOf("настольн")>=0 ||
+      name.indexOf("компакт")>=0
+    ){
+      return "small";
+    }
+
+    if(
+      name.indexOf("промышлен")>=0 ||
+      name.indexOf("конвейер")>=0 ||
+      name.indexOf("автомат")>=0
+    ){
+      return "industrial";
+    }
+  }
+
+  if(
+    name.indexOf("вакуумн")>=0 &&
+    name.indexOf("упаковщик")>=0
+  ){
+    if(
+      name.indexOf("небольш")>=0 ||
+      name.indexOf("ручн")>=0 ||
+      name.indexOf("настольн")>=0 ||
+      name.indexOf("компакт")>=0
+    ){
+      return "small";
+    }
+
+    if(
+      name.indexOf("промышлен")>=0 ||
+      name.indexOf("камерн")>=0 ||
+      name.indexOf("двухкамерн")>=0 ||
+      name.indexOf("конвейер")>=0 ||
+      name.indexOf("автомат")>=0
+    ){
+      return "industrial";
+    }
+  }
+
+  return "";
+}
+
+/*
+ * Определяет, какой режим назван пользователем.
+ * Для общих запросов вернёт пустую строку.
+ */
+function queryMode(query){
+  var q=norm(query);
+
+  if(
+    /\bполуавтомат/.test(q) ||
+    /\bсредн/.test(q) ||
+    /\bсредняя производ/.test(q)
+  ){
+    return "semi";
+  }
+
+  if(
+    /\bручн/.test(q) ||
+    /\bнебольш/.test(q) ||
+    /\bнастольн/.test(q) ||
+    /\bкомпакт/.test(q) ||
+    /\bмалогабарит/.test(q) ||
+    /\bмалые объем/.test(q)
+  ){
+    return "small";
+  }
+
+  if(
+    /\bпромышлен/.test(q) ||
+    /\bавтомат/.test(q) ||
+    /\bконвейер/.test(q) ||
+    /\bлиния/.test(q) ||
+    /\bвысокопроизвод/.test(q) ||
+    /\bбольшие объем/.test(q)
+  ){
+    return "industrial";
+  }
+
+  return "";
+}
+
+
+function search(){
+  var q=document.getElementById("search").value.trim();
+
+  if(!q){
+    document.getElementById("results").innerHTML="";
+    return;
+  }
+
+  if(!API_LOADED){
+    message(
+      "База ещё не готова",
+      API_ERROR||"Подождите окончания загрузки данных."
+    );
+    return;
+  }
+
+  var found=C.map(function(category){
+    return {
+      c:category,
+      m:score(q,category)
+    };
+  }).filter(function(item){
+    return item.m.score>=70;
+  }).sort(function(a,b){
+    return b.m.score-a.m.score;
+  });
+
+  if(!found.length){
+    showExternalSearch();
+    return;
+  }
+
+  /*
+   * Проверяем, относится ли лучший результат
+   * к одной из групп: запайщики лотков
+   * или вакуумные упаковщики.
+   */
+  var best=found[0];
+  var group=categoryGroup(best.c.name);
+  var mode=queryMode(q);
+
+  if(group){
+    /*
+     * Берём только релевантные категории
+     * внутри одной группы.
+     */
+    var groupItems=found.filter(function(item){
+      return categoryGroup(item.c.name)===group;
+    });
+
+    /*
+     * Пользователь явно написал признак:
+     * ручной / небольшой / полуавтоматический /
+     * промышленный / автоматический / конвейерный.
+     *
+     * Выводим одну наиболее подходящую категорию.
+     */
+    if(mode){
+      var exactModeItems=groupItems.filter(function(item){
+        return categoryMode(item.c.name)===mode;
+      });
+
+      if(exactModeItems.length){
+        render(exactModeItems[0].c,q,exactModeItems[0].m);
+        return;
+      }
+    }
+
+    /*
+     * Если явного маркера нет:
+     * показываем две или три подходящие подкатегории,
+     * чтобы пользователь выбрал сам.
+     */
+    if(groupItems.length>=2){
+      renderCategoryChoices(groupItems.slice(0,3),q);
+      return;
+    }
+  }
+
+  /*
+   * Обычный поиск для всех остальных категорий.
+   */
+  render(best.c,q,best.m);
+}
+
+function renderCategoryChoices(items,q){
+  var h='<div class="card">';
+  h+='<div class="title">Уточните вариант оборудования</div>';
+  h+='<h2>Найдено несколько подходящих категорий</h2>';
+  h+='<div class="small">';
+  h+='Выберите вариант по объёму производства и уровню автоматизации.';
+  h+='</div>';
+  h+='<div class="actions">';
+
+  items.forEach(function(item){
+    var index=C.indexOf(item.c);
+
+    h+='<button class="secondary" onclick="openCategoryByIndex('+
+      index+
+      ','+
+      encodeURIComponent(q)+
+      ')">'+
+      esc(item.c.name)+
+      '</button>';
+  });
+
+  h+='</div></div>';
+
+  document.getElementById("results").innerHTML=h;
+}
+
+function openCategoryByIndex(index,encodedQuery){
+  var category=C[index];
+
+  if(!category){
+    return;
+  }
+
+  var q="";
+
+  try{
+    q=decodeURIComponent(encodedQuery||"");
+  }catch(e){
+    q="";
+  }
+
+  render(
+    category,
+    q,
+    {
+      score:99,
+      hits:[category.name]
+    }
+  );
+}
+
 
 function questionGroups(items){
  var universal=[],specific=[],mode="specific";

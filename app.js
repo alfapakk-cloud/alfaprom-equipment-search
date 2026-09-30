@@ -176,7 +176,7 @@ function supplierAliases(name){
   var normalizedFull=supplierSearchKey(source.split("(")[0]);
 
   Object.keys(SUPPLIER_ALIASES).forEach(function(baseKey){
-    if(normalizedFull===baseKey){
+    if(normalizedFull===supplierSearchKey(baseKey)){
       SUPPLIER_ALIASES[baseKey].forEach(addAlias);
     }
   });

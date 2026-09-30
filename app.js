@@ -18,6 +18,17 @@ function supplier(s){
 
 var SUPPLIER_INDEX=[];
 
+/*
+ * Только для реально самостоятельных коротких названий,
+ * которые не следуют автоматически из названия поставщика.
+ * Основные названия и варианты в скобках индексируются
+ * динамически из таблицы.
+ */
+var SUPPLIER_ALIASES={
+  "пищевыетехнологии":["пищтех"],
+  "агрозавод":["foodatlas","фудатлас"]
+};
+
 function supplierSearchKey(x){
   x=norm(x)
     .replace(/э/g,"е")
@@ -66,18 +77,6 @@ function supplierDistance(a,b){
   return prev[b.length];
 }
 
-/*
- * Из одного названия поставщика автоматически получаем
- * несколько поисковых алиасов:
- * основное название + содержимое скобок.
- *
- * Например:
- * «Протэк (ТМ Протэк)» -> «Протэк»
- * «Хуалянь (ТМ Hualian)» -> «Хуалянь», «Hualian»
- * «Бразер Пак (Brother Pack)» -> «Бразер Пак», «Brother Pack»
- *
- * Список поставщиков в коде не задаётся вручную.
- */
 function supplierAliases(name){
   var source=val(name);
   var aliases=[];
@@ -87,10 +86,6 @@ function supplierAliases(name){
     x=val(x);
     if(!x)return;
 
-    /*
-     * Убираем служебные пометки, которые сами по себе
-     * не являются названием поставщика.
-     */
     x=x
       .replace(/\bтм\b/gi," ")
       .replace(/\bсерия\b/gi," ")
@@ -103,12 +98,7 @@ function supplierAliases(name){
     if(!x)return;
 
     var key=supplierSearchKey(x);
-    if(!key || seen[key])return;
-
-    /*
-     * Не добавляем слишком короткие служебные части.
-     */
-    if(key.length<3)return;
+    if(!key || seen[key] || key.length<3)return;
 
     seen[key]=true;
     aliases.push({
@@ -118,13 +108,26 @@ function supplierAliases(name){
   }
 
   /*
-   * Основная часть названия до первой скобки.
+   * Полное название до скобок.
    */
   addAlias(source.split("(")[0]);
 
   /*
-   * Каждая скобочная часть считается отдельным алиасом.
-   * Это позволяет искать по торговой марке/английскому названию.
+   * Для названий вроде:
+   * ТД "Смирнов-1"
+   * ТД "Росхолод"
+   * Завод "Эльф 4М"
+   *
+   * дополнительно индексируем содержимое кавычек.
+   */
+  var quoted=source.match(/["«]([^"»]+)["»]/g)||[];
+  quoted.forEach(function(part){
+    addAlias(part.replace(/^["«]|["»]$/g,""));
+  });
+
+  /*
+   * Каждая скобочная часть может быть торговой маркой
+   * или альтернативным названием.
    */
   var matches=source.match(/\(([^)]*)\)/g)||[];
   matches.forEach(function(part){
@@ -132,9 +135,52 @@ function supplierAliases(name){
   });
 
   /*
-   * Для однословного основного названия добавляем его
-   * отдельно даже если в скобках есть повтор.
+   * Для двух- и более слов добавляем отдельные
+   * смысловые слова длиной от 4 символов.
+   * Например «ТД Смирнов-1» -> «Смирнов».
+   *
+   * Служебные слова исключаем.
    */
+  var base=source.split("(")[0]
+    .replace(/["«»]/g," ")
+    .replace(/[^a-zа-я0-9\s-]/gi," ")
+    .replace(/\s+/g," ")
+    .trim();
+
+  var ignored={
+    "тд":true,
+    "ооо":true,
+    "ип":true,
+    "завод":true,
+    "тм":true,
+    "групп":true,
+    "группа":true,
+    "компани":true,
+    "компания":true,
+    "рус":true
+  };
+
+  base.split(/\s+/).forEach(function(word){
+    var clean=word.replace(/^-+|-+$/g,"");
+    var n=norm(clean);
+
+    if(n.length>=4 && !ignored[n]){
+      addAlias(clean);
+    }
+  });
+
+  /*
+   * Ручные короткие алиасы применяем по ключу
+   * нормализованного полного названия.
+   */
+  var normalizedFull=supplierSearchKey(source.split("(")[0]);
+
+  Object.keys(SUPPLIER_ALIASES).forEach(function(baseKey){
+    if(normalizedFull===baseKey){
+      SUPPLIER_ALIASES[baseKey].forEach(addAlias);
+    }
+  });
+
   return aliases;
 }
 
@@ -149,23 +195,20 @@ function buildSupplierIndex(){
         return;
       }
 
-      var aliases=supplierAliases(s.name);
+      var supplierKey=supplierSearchKey(s.name);
 
-      aliases.forEach(function(alias){
-        /*
-         * Один поставщик может встречаться в десятках строк
-         * и иметь несколько поисковых алиасов. Все алиасы
-         * указывают на один и тот же объект поставщика.
-         */
-        var supplierKey=supplierSearchKey(s.name);
+      if(!supplierKey){
+        return;
+      }
 
-        if(!map[supplierKey]){
-          map[supplierKey]={
-            supplier:s,
-            aliases:[]
-          };
-        }
+      if(!map[supplierKey]){
+        map[supplierKey]={
+          supplier:s,
+          aliases:[]
+        };
+      }
 
+      supplierAliases(s.name).forEach(function(alias){
         if(!map[supplierKey].aliases.some(function(x){
           return x.key===alias.key;
         })){
@@ -192,34 +235,30 @@ function findSupplier(query){
   }
 
   /*
-   * Сначала точное совпадение с любым алиасом.
+   * 1. Полное точное совпадение с любым алиасом.
    */
   for(var i=0;i<SUPPLIER_INDEX.length;i++){
     var item=SUPPLIER_INDEX[i];
 
     for(var a=0;a<item.aliases.length;a++){
-      var alias=item.aliases[a];
-
-      if(compact===alias.key){
+      if(compact===item.aliases[a].key){
         return item;
       }
     }
   }
 
   /*
-   * Затем ищем алиас внутри запроса.
-   * Это сохраняет возможность искать поставщика
-   * по фразе вроде «оборудование Hualian».
+   * 2. Алиас является частью поисковой фразы.
    */
   for(var j=0;j<SUPPLIER_INDEX.length;j++){
     var candidate=SUPPLIER_INDEX[j];
 
     for(var b=0;b<candidate.aliases.length;b++){
-      var candidateAlias=candidate.aliases[b];
+      var alias=candidate.aliases[b];
 
       if(
-        candidateAlias.key.length>=4 &&
-        compact.indexOf(candidateAlias.key)>=0
+        alias.key.length>=4 &&
+        compact.indexOf(alias.key)>=0
       ){
         return candidate;
       }
@@ -227,10 +266,9 @@ function findSupplier(query){
   }
 
   /*
-   * В конце допускаем небольшую опечатку,
-   * но сравниваем запрос только с короткими
-   * смысловыми алиасами, а не со всей строкой
-   * «Протэк ТМ Протэк».
+   * 3. Небольшая опечатка.
+   * Сравниваем только с отдельными смысловыми алиасами,
+   * а не со всей строкой поставщика.
    */
   for(var k=0;k<SUPPLIER_INDEX.length;k++){
     var fuzzyCandidate=SUPPLIER_INDEX[k];

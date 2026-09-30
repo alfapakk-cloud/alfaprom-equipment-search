@@ -19,13 +19,7 @@ function supplier(s){
 var SUPPLIER_INDEX=[];
 
 function supplierSearchKey(x){
-  x=norm(x);
-
-  /*
-   * Приводим распространённые варианты написания
-   * к одной форме до транслитерации.
-   */
-  x=x
+  x=norm(x)
     .replace(/э/g,"е")
     .replace(/ъ/g,"")
     .replace(/ь/g,"")
@@ -72,6 +66,78 @@ function supplierDistance(a,b){
   return prev[b.length];
 }
 
+/*
+ * Из одного названия поставщика автоматически получаем
+ * несколько поисковых алиасов:
+ * основное название + содержимое скобок.
+ *
+ * Например:
+ * «Протэк (ТМ Протэк)» -> «Протэк»
+ * «Хуалянь (ТМ Hualian)» -> «Хуалянь», «Hualian»
+ * «Бразер Пак (Brother Pack)» -> «Бразер Пак», «Brother Pack»
+ *
+ * Список поставщиков в коде не задаётся вручную.
+ */
+function supplierAliases(name){
+  var source=val(name);
+  var aliases=[];
+  var seen={};
+
+  function addAlias(x){
+    x=val(x);
+    if(!x)return;
+
+    /*
+     * Убираем служебные пометки, которые сами по себе
+     * не являются названием поставщика.
+     */
+    x=x
+      .replace(/\bтм\b/gi," ")
+      .replace(/\bсерия\b/gi," ")
+      .replace(/\bзавод\b/gi," ")
+      .replace(/\bдля\b/gi," ")
+      .replace(/\bрыбы\b/gi," ")
+      .replace(/\s+/g," ")
+      .trim();
+
+    if(!x)return;
+
+    var key=supplierSearchKey(x);
+    if(!key || seen[key])return;
+
+    /*
+     * Не добавляем слишком короткие служебные части.
+     */
+    if(key.length<3)return;
+
+    seen[key]=true;
+    aliases.push({
+      text:x,
+      key:key
+    });
+  }
+
+  /*
+   * Основная часть названия до первой скобки.
+   */
+  addAlias(source.split("(")[0]);
+
+  /*
+   * Каждая скобочная часть считается отдельным алиасом.
+   * Это позволяет искать по торговой марке/английскому названию.
+   */
+  var matches=source.match(/\(([^)]*)\)/g)||[];
+  matches.forEach(function(part){
+    addAlias(part.replace(/^\(|\)$/g,""));
+  });
+
+  /*
+   * Для однословного основного названия добавляем его
+   * отдельно даже если в скобках есть повтор.
+   */
+  return aliases;
+}
+
 function buildSupplierIndex(){
   var map={};
 
@@ -83,32 +149,42 @@ function buildSupplierIndex(){
         return;
       }
 
-      var key=supplierSearchKey(s.name);
+      var aliases=supplierAliases(s.name);
 
-      if(!key){
-        return;
-      }
+      aliases.forEach(function(alias){
+        /*
+         * Один поставщик может встречаться в десятках строк
+         * и иметь несколько поисковых алиасов. Все алиасы
+         * указывают на один и тот же объект поставщика.
+         */
+        var supplierKey=supplierSearchKey(s.name);
 
-      /*
-       * Один поставщик может встречаться в десятках строк
-       * разных категорий. Храним его только один раз.
-       */
-      if(!map[key]){
-        map[key]={
-          key:key,
-          supplier:s
-        };
-      }
+        if(!map[supplierKey]){
+          map[supplierKey]={
+            supplier:s,
+            aliases:[]
+          };
+        }
+
+        if(!map[supplierKey].aliases.some(function(x){
+          return x.key===alias.key;
+        })){
+          map[supplierKey].aliases.push(alias);
+        }
+      });
     });
   });
 
   SUPPLIER_INDEX=Object.keys(map).map(function(key){
-    return map[key];
+    return {
+      key:key,
+      supplier:map[key].supplier,
+      aliases:map[key].aliases
+    };
   });
 }
 
 function findSupplier(query){
-  var normalized=norm(query);
   var compact=supplierSearchKey(query);
 
   if(!compact){
@@ -116,46 +192,61 @@ function findSupplier(query){
   }
 
   /*
-   * Сначала ищем точное совпадение или поставщика,
-   * который целиком входит в запрос.
+   * Сначала точное совпадение с любым алиасом.
    */
   for(var i=0;i<SUPPLIER_INDEX.length;i++){
     var item=SUPPLIER_INDEX[i];
 
-    if(
-      compact===item.key ||
-      compact.indexOf(item.key)>=0
-    ){
-      return item;
+    for(var a=0;a<item.aliases.length;a++){
+      var alias=item.aliases[a];
+
+      if(compact===alias.key){
+        return item;
+      }
     }
   }
 
   /*
-   * Затем допускаем небольшую опечатку для однословного
-   * названия поставщика.
+   * Затем ищем алиас внутри запроса.
+   * Это сохраняет возможность искать поставщика
+   * по фразе вроде «оборудование Hualian».
    */
-  var words=normalized.split(/\s+/).filter(function(word){
-    return word.length>=4;
-  });
-
   for(var j=0;j<SUPPLIER_INDEX.length;j++){
     var candidate=SUPPLIER_INDEX[j];
 
-    if(candidate.key.length<5){
-      continue;
-    }
+    for(var b=0;b<candidate.aliases.length;b++){
+      var candidateAlias=candidate.aliases[b];
 
-    for(var k=0;k<words.length;k++){
-      var wordKey=supplierSearchKey(words[k]);
-      if(wordKey.length<4){
+      if(
+        candidateAlias.key.length>=4 &&
+        compact.indexOf(candidateAlias.key)>=0
+      ){
+        return candidate;
+      }
+    }
+  }
+
+  /*
+   * В конце допускаем небольшую опечатку,
+   * но сравниваем запрос только с короткими
+   * смысловыми алиасами, а не со всей строкой
+   * «Протэк ТМ Протэк».
+   */
+  for(var k=0;k<SUPPLIER_INDEX.length;k++){
+    var fuzzyCandidate=SUPPLIER_INDEX[k];
+
+    for(var c=0;c<fuzzyCandidate.aliases.length;c++){
+      var fuzzyAlias=fuzzyCandidate.aliases[c];
+
+      if(fuzzyAlias.key.length<5){
         continue;
       }
 
-      var distance=supplierDistance(wordKey,candidate.key);
-      var allowed=wordKey.length>=7 ? 2 : 1;
+      var distance=supplierDistance(compact,fuzzyAlias.key);
+      var allowed=compact.length>=7 ? 2 : 1;
 
       if(distance<=allowed){
-        return candidate;
+        return fuzzyCandidate;
       }
     }
   }

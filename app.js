@@ -11,18 +11,9 @@ function norm(x){return val(x).toLowerCase().replace(/ё/g,"е").replace(/[^a-z�
 function list(x){if(Array.isArray(x))return x.map(val).filter(Boolean);return val(x).split(/[,\;\r\n]+/).map(val).filter(Boolean);}
 function rank(x){x=val(x).toUpperCase();return x==="A"?1:x==="B"?2:x==="C"?3:9;}
 
-function splitLoginPassword(value){
- var lines=String(value||"")
-   .split(/\r?\n/)
-   .map(function(x){return x.trim();})
-   .filter(Boolean);
- return {login:lines[0]||"",password:lines[1]||""};
-}
-
 function supplier(s){
  s=s||{};
- var credentials=splitLoginPassword(s.login);
- return {name:val(s.name)||"Без названия",brand:val(s.brand),country:val(s.country),legalName:val(s.legalName),site:val(s.site),status:val(s.status),discount:val(s.discount),groups:val(s.groups),workFeatures:val(s.workFeatures),contact:val(s.mainContact),advantages:val(s.advantages),note:val(s.comments),phone:val(s.phone),email:val(s.email),messenger:val(s.messenger),priority:val(s.priority).toUpperCase(),lkLink:val(s.personalCabinet),login:credentials.login,password:credentials.password,additionalInfo:val(s.additionalInfo),department:val(s.department),additionalContacts:val(s.additionalContacts),serviceCenter:val(s.serviceCenter),showroom:val(s.showroom),warehouse:val(s.warehouse),pickup:val(s.pickup),deliveryToTK:val(s.deliveryToTK),deliveryTerms:val(s.deliveryTerms),shipmentRequest:val(s.shipmentRequest),accounting:val(s.accounting),categoryId:val(s.categoryId)};
+ return {name:val(s.name)||"Без названия",brand:val(s.brand),country:val(s.country),legalName:val(s.legalName),site:val(s.site),status:val(s.status),discount:val(s.discount),groups:val(s.groups),workFeatures:val(s.workFeatures),contact:val(s.mainContact),advantages:val(s.advantages),note:val(s.comments),phone:val(s.phone),email:val(s.email),messenger:val(s.messenger),priority:val(s.priority).toUpperCase(),lkLink:val(s.personalCabinet),additionalInfo:val(s.additionalInfo),department:val(s.department),additionalContacts:val(s.additionalContacts),serviceCenter:val(s.serviceCenter),showroom:val(s.showroom),warehouse:val(s.warehouse),pickup:val(s.pickup),deliveryToTK:val(s.deliveryToTK),deliveryTerms:val(s.deliveryTerms),shipmentRequest:val(s.shipmentRequest),accounting:val(s.accounting),categoryId:val(s.categoryId)};
 }
 
 var SUPPLIER_INDEX=[];
@@ -965,8 +956,7 @@ function supplierCard(s,index){
  h+='<div class="supplier-key">🏷️ <b>Наша скидка:</b> '+esc(s.discount||"—")+'</div>';
  if(s.site)h+='<div class="supplier-links">'+linkHtml("🌐 Сайт",s.site)+'</div>';
  if(s.lkLink)h+='<div class="supplier-links">'+linkHtml("🔗 Личный кабинет",s.lkLink)+'</div>';
- if(s.lkLink && s.login)h+='<div class="supplier-key">👤 <b>Логин в Личном кабинете:</b> '+esc(s.login)+'</div>';
- if(s.lkLink && s.password)h+='<div class="supplier-key">🔑 <b>Пароль в Личном кабинете:</b> '+esc(s.password)+'</div>';
+ if(s.lkLink)h+='<button type="button" class="secondary details-btn" onclick="loadSupplierCredentials('+index+')">🔐 Показать данные ЛК</button>';
  if(s.workFeatures)h+='<div class="supplier-key">⚠️ <b>Особенности работы:</b> '+esc(s.workFeatures)+'</div>';
  if(s.advantages)h+='<div class="supplier-key">🔥 <b>Дополнительные преимущества:</b> '+esc(s.advantages)+'</div>';
  h+='<button class="secondary details-btn" onclick="openSupplierModalByIndex('+index+')">Подробнее</button>';
@@ -993,9 +983,65 @@ function renderSupplierModal(s){
  var h='<div class="modal-overlay" id="supplierModal" onclick="if(event.target===this)closeSupplierModal()"><div class="supplier-modal">';
  h+='<div class="modal-head"><div><div class="title">Поставщик</div><h2>'+esc(s.priority||"—")+' · '+esc(s.name)+'</h2></div><button class="secondary modal-close" onclick="closeSupplierModal()">✕</button></div>';
  h+='<div class="detail-grid">';
- h+=fieldRow("Основной контакт",s.contact);h+=fieldRow("Страна",s.country);h+=fieldRow("Наша скидка",s.discount);h+=fieldRow("Сайт",s.site);h+=fieldRow("Личный кабинет",s.lkLink);h+=fieldRow("Логин в Личном кабинете",s.login);h+=fieldRow("Пароль в Личном кабинете",s.password);h+=fieldRow("Юридическое лицо",s.legalName);h+=fieldRow("Статус поставщика",s.status);h+=fieldRow("Основные группы оборудования",s.groups);h+=fieldRow("Особенности работы",s.workFeatures);h+=fieldRow("Дополнительные преимущества",s.advantages);h+=fieldRow("Общие комментарии",s.note);h+=fieldRow("Отдел / направление",s.department);h+=fieldRow("Телефон",s.phone);h+=fieldRow("Email",s.email);h+=fieldRow("Мессенджер",s.messenger);h+=fieldRow("Дополнительные контакты",s.additionalContacts);h+=fieldRow("Адрес СЦ",s.serviceCenter);h+=fieldRow("Адрес шоурума",s.showroom);h+=fieldRow("Адрес склада",s.warehouse);h+=fieldRow("Адрес самовывоза",s.pickup);h+=fieldRow("Доставка до ТК",s.deliveryToTK);h+=fieldRow("Условия доставки",s.deliveryTerms);h+=fieldRow("Заявка на отгрузку",s.shipmentRequest);h+=fieldRow("Бухгалтерия",s.accounting);h+=fieldRow("Доп. информация",s.additionalInfo);h+=fieldRow("ID категории",s.categoryId);
+ h+=fieldRow("Основной контакт",s.contact);h+=fieldRow("Страна",s.country);h+=fieldRow("Наша скидка",s.discount);h+=fieldRow("Сайт",s.site);h+=fieldRow("Личный кабинет",s.lkLink);h+=fieldRow("Юридическое лицо",s.legalName);h+=fieldRow("Статус поставщика",s.status);h+=fieldRow("Основные группы оборудования",s.groups);h+=fieldRow("Особенности работы",s.workFeatures);h+=fieldRow("Дополнительные преимущества",s.advantages);h+=fieldRow("Общие комментарии",s.note);h+=fieldRow("Отдел / направление",s.department);h+=fieldRow("Телефон",s.phone);h+=fieldRow("Email",s.email);h+=fieldRow("Мессенджер",s.messenger);h+=fieldRow("Дополнительные контакты",s.additionalContacts);h+=fieldRow("Адрес СЦ",s.serviceCenter);h+=fieldRow("Адрес шоурума",s.showroom);h+=fieldRow("Адрес склада",s.warehouse);h+=fieldRow("Адрес самовывоза",s.pickup);h+=fieldRow("Доставка до ТК",s.deliveryToTK);h+=fieldRow("Условия доставки",s.deliveryTerms);h+=fieldRow("Заявка на отгрузку",s.shipmentRequest);h+=fieldRow("Бухгалтерия",s.accounting);h+=fieldRow("Доп. информация",s.additionalInfo);h+=fieldRow("ID категории",s.categoryId);
  h+='</div></div></div>';return h;
 }
+function loadSupplierCredentials(index){
+  var s=SUPPLIER_MODAL_DATA[index];
+  if(!s || !s.lkLink)return;
+
+  var button=document.querySelectorAll(".supplier .details-btn")[index];
+  if(button){
+    button.disabled=true;
+    button.textContent="Загрузка...";
+  }
+
+  fetch(API_URL+"?token="+encodeURIComponent(GOOGLE_ID_TOKEN)+"&credentials=1&supplier="+encodeURIComponent(s.name)+"&t="+Date.now(),{cache:"no-store"})
+    .then(function(r){
+      if(!r.ok)throw Error("HTTP "+r.status);
+      return r.json();
+    })
+    .then(function(d){
+      if(!d || d.success!==true){
+        throw Error((d&&d.error)||"Не удалось получить данные ЛК");
+      }
+
+      s.login=val(d.login);
+      s.password=val(d.password);
+
+      renderSupplierCredentials(index);
+    })
+    .catch(function(e){
+      alert(e.message||"Не удалось получить данные ЛК");
+      if(button){
+        button.disabled=false;
+        button.textContent="🔐 Показать данные ЛК";
+      }
+    });
+}
+
+function renderSupplierCredentials(index){
+  var s=SUPPLIER_MODAL_DATA[index];
+  if(!s)return;
+
+  var cards=document.querySelectorAll(".supplier");
+  var card=cards[index];
+  if(!card)return;
+
+  var old=card.querySelector(".lk-credentials");
+  if(old)old.remove();
+
+  var block=document.createElement("div");
+  block.className="lk-credentials supplier-key";
+  block.innerHTML=
+    '<div>👤 <b>Логин в Личном кабинете:</b> '+esc(s.login||"—")+'</div>'+
+    '<div>🔑 <b>Пароль в Личном кабинете:</b> '+esc(s.password||"—")+'</div>';
+
+  var button=card.querySelector(".details-btn");
+  button.parentNode.insertBefore(block,button);
+  button.remove();
+}
+
 function openSupplierModalByIndex(index){var s=SUPPLIER_MODAL_DATA[index];if(!s)return;var root=document.getElementById("supplierModalRoot");if(!root)return;root.innerHTML=renderSupplierModal(s);document.body.style.overflow="hidden";}
 function closeSupplierModal(){var root=document.getElementById("supplierModalRoot");if(root)root.innerHTML="";document.body.style.overflow="";}
 document.addEventListener("keydown",function(e){if(e.key==="Escape")closeSupplierModal();});

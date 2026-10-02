@@ -990,7 +990,9 @@ function loadSupplierCredentials(index){
   var s=SUPPLIER_MODAL_DATA[index];
   if(!s || !s.lkLink)return;
 
-  var button=document.querySelectorAll(".supplier .details-btn")[index];
+  var cards=document.querySelectorAll(".supplier");
+  var card=cards[index];
+  var button=card ? card.querySelector('button[onclick^="loadSupplierCredentials"]') : null;
   if(button){
     button.disabled=true;
     button.textContent="Загрузка...";

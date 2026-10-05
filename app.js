@@ -8,7 +8,8 @@ var API_ERROR="";
 function val(x){return x==null?"":String(x).trim();}
 function esc(x){return val(x).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");}
 function norm(x){return val(x).toLowerCase().replace(/ё/g,"е").replace(/[^a-zа-я0-9\s-]/gi," ").replace(/\s+/g," ").trim();}
-function listKeywords(x){if(Array.isArray(x))return x.map(val).filter(Boolean);return val(x).split(/[,\;\r\n]+/).map(val).filter(Boolean);}\nfunction listQuestions(x){if(Array.isArray(x))return x.map(val).filter(Boolean);return val(x).split(/[\r\n]+/).map(val).filter(Boolean);}
+function listKeywords(x){if(Array.isArray(x))return x.map(val).filter(Boolean);return val(x).split(/[,\;\r\n]+/).map(val).filter(Boolean);}
+function listQuestions(x){if(Array.isArray(x))return x.map(val).filter(Boolean);return val(x).split(/[\r\n]+/).map(val).filter(Boolean);}
 function rank(x){x=val(x).toUpperCase();return x==="A"?1:x==="B"?2:x==="C"?3:9;}
 
 function supplier(s){

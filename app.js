@@ -305,8 +305,8 @@ function build(items){
     var cat=val(category.name);
     if(!cat)return;
 
-    var keywords=list(category.keywords);
-    var questions=list(category.questions);
+    var keywords=listKeywords(category.keywords);
+    var questions=listQuestions(category.questions);
     var features=val(category.features);
 
     // Название категории всегда является поисковым термином.
